@@ -89,9 +89,7 @@ fn transpose_linear_node_weights(node: &mut Node) {
         }
         _ => panic!("Only float types are supported for Linear node"),
     }
-    let shape = Some(vec![shape[1], shape[0]]); // Transpose the shape
     node.inputs[1].ty = ArgType::Tensor(TensorType {
-        shape,
         elem_type: weight.elem_type,
         dim: 2,
     });

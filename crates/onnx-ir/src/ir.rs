@@ -59,7 +59,6 @@ impl Argument {
                 ty: ArgType::Tensor(TensorType {
                     elem_type: tensor.elem_type,
                     dim: tensor.dim,
-                    shape: tensor.shape,
                 }),
                 value: tensor.data.clone(),
                 passed: false,
@@ -111,9 +110,6 @@ pub struct TensorType {
     /// The dimension of the tensor.
     /// TODO Rename to rank
     pub dim: Dim,
-
-    /// The shape of the tensor.
-    pub shape: Option<Shape>,
 }
 
 impl Default for ElementType {
@@ -776,7 +772,6 @@ impl From<AttributeValue> for Argument {
                 ty: ArgType::Tensor(TensorType {
                     dim: 1,
                     elem_type: ElementType::Float32,
-                    shape: Some(vec![values.len()]),
                 }),
                 name,
                 value: Some(Data::Float32s(values)),
@@ -792,7 +787,6 @@ impl From<AttributeValue> for Argument {
                 ty: ArgType::Tensor(TensorType {
                     dim: 1,
                     elem_type: ElementType::Int64,
-                    shape: Some(vec![values.len()]),
                 }),
                 name,
                 value: Some(Data::Int64s(values)),
@@ -808,7 +802,6 @@ impl From<AttributeValue> for Argument {
                 ty: ArgType::Tensor(TensorType {
                     dim: 1,
                     elem_type: ElementType::String,
-                    shape: Some(vec![values.len()]),
                 }),
                 name,
                 value: Some(Data::Strings(values)),
@@ -838,7 +831,6 @@ impl From<AttributeValue> for Argument {
                         ty: ArgType::Tensor(TensorType {
                             dim: tensor.dim,
                             elem_type: tensor.elem_type,
-                            shape: tensor.shape,
                         }),
                         name,
                         value: tensor.data,
@@ -858,7 +850,7 @@ impl Argument {
                 elem_type: tensor_type.elem_type,
                 dim: tensor_type.dim,
                 data: self.value,
-                shape: tensor_type.shape,
+                shape: None,
             })
         } else {
             None

@@ -8,13 +8,13 @@ use crate::node_remap::remap_node_type;
 
 use super::{
     coalesce::coalesce,
-    ir::{Data, OnnxGraph, TensorType},
+    ir::OnnxGraph,
     proto_conversion::convert_node_proto,
     protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
 
 use super::dim_inference::dim_inference;
-use super::ir::{ArgType, Argument, Node, NodeType};
+use super::ir::{Argument, Node, NodeType};
 
 use protobuf::Message;
 
@@ -379,34 +379,34 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 /// node renaming has been done. avoids marking rhs as passed so that it can be
 /// properly deleted if nothing else uses it
 /// Remap the unsqueeze node to a reshape node
-pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
-    if let ArgType::Tensor(output_tensor) = &out_arg.ty {
-        let inner = output_tensor
-            .shape
-            .clone()
-            .unwrap()
-            .into_iter()
-            .map(|x| x as i64)
-            .collect::<Vec<i64>>();
-        let shape_len = inner.len();
-        let new_rhs_value = Some(Data::Int64s(inner));
-        //moving the remap to here
-        let rhs_arg = Argument {
-            name: format!("{}_generated_const", &node.name),
-            ty: ArgType::Tensor(TensorType {
-                elem_type: super::ir::ElementType::Int64,
-                dim: 1,
-                shape: Some(vec![shape_len]),
-            }),
-            value: new_rhs_value,
-            passed: false,
-        };
-        // ? should this replace the old input (reuse the old key) or should it be a new key
-        // going with new key for now
-        node.inputs[1] = rhs_arg;
-        node.outputs[0] = out_arg.clone();
-        node.node_type = NodeType::Reshape;
-    }
+pub(crate) fn remap_unsqueeze_to_reshape(_node: &mut Node, _out_arg: &Argument) {
+    todo!("Rework this");
+    // if let ArgType::Tensor(output_tensor) = &out_arg.ty {
+    //     let inner = output_tensor
+    //         .shape
+    //         .clone()
+    //         .unwrap()
+    //         .into_iter()
+    //         .map(|x| x as i64)
+    //         .collect::<Vec<i64>>();
+    //     let shape_len = inner.len();
+    //     let new_rhs_value = Some(Data::Int64s(inner));
+    //     //moving the remap to here
+    //     let rhs_arg = Argument {
+    //         name: format!("{}_generated_const", &node.name),
+    //         ty: ArgType::Tensor(TensorType {
+    //             elem_type: super::ir::ElementType::Int64,
+    //             dim: 1,
+    //         }),
+    //         value: new_rhs_value,
+    //         passed: false,
+    //     };
+    //     // ? should this replace the old input (reuse the old key) or should it be a new key
+    //     // going with new key for now
+    //     node.inputs[1] = rhs_arg;
+    //     node.outputs[0] = out_arg.clone();
+    //     node.node_type = NodeType::Reshape;
+    // }
 }
 // Define a trait for topological sorting
 trait TopologicalSortable {

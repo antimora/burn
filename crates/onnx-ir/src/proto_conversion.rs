@@ -3,7 +3,6 @@ use std::str::{from_utf8, FromStr};
 use crate::ir::TensorType;
 
 use super::from_onnx::GraphData;
-use super::ir::Dim;
 use super::ir::{
     ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, Tensor,
 };
@@ -250,14 +249,6 @@ impl TryFrom<ValueInfoProto> for Argument {
             let tensor_type = TensorType {
                 dim: tensor_proto.shape.dim.len(),
                 elem_type,
-                shape: Some(
-                    tensor_proto
-                        .shape
-                        .dim
-                        .iter()
-                        .map(|x| x.dim_value() as Dim)
-                        .collect(),
-                ),
             };
 
             ArgType::Tensor(tensor_type)
