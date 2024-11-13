@@ -13,8 +13,8 @@ use super::{
     protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
 
-use super::dim_inference::dim_inference;
 use super::ir::{Argument, Node, NodeType};
+use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
@@ -223,7 +223,7 @@ impl OnnxGraphBuilder {
             // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data);
 
-            dim_inference(&mut node);
+            rank_inference(&mut node);
             graph_data.add_node(node);
         }
 

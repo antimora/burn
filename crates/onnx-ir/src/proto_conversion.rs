@@ -247,7 +247,7 @@ impl TryFrom<ValueInfoProto> for Argument {
         } else {
             // tensor_proto describes a tensor
             let tensor_type = TensorType {
-                dim: tensor_proto.shape.dim.len(),
+                rank: tensor_proto.shape.dim.len(),
                 elem_type,
             };
 
