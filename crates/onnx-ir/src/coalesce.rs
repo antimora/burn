@@ -6,7 +6,7 @@ use super::{
     proto_conversion::convert_node_proto,
     protos::NodeProto,
 };
-use crate::ir::{ArgType, Data, TensorType};
+use crate::ir::{ArgType, Data, TensorData};
 
 /// The function transforms the graph into a new one where the nodes are coalesced into a single node.
 pub fn coalesce(
@@ -55,7 +55,6 @@ pub(crate) fn convert_gemm_to_linear(node: &mut Node) {
         panic!("Full Gemm node not supported yet.");
     }
 }
-
 // Transpose linear weights (required for Gemm -> Linear conversion)
 fn transpose_linear_node_weights(node: &mut Node) {
     assert!(
@@ -65,34 +64,55 @@ fn transpose_linear_node_weights(node: &mut Node) {
 
     assert!(node.inputs[1].value.is_some(), "Input must have a value");
 
-    let weight = node.inputs[1]
-        .clone()
-        .into_tensor()
-        .expect("Tensor input is expected");
+    let tensor_data = node.inputs[1].value.as_ref().unwrap();
+    let data = &tensor_data.data;
+    let shape = &tensor_data.shape;
+    let elem_type = tensor_data.elem_type.clone();
+    let rank = tensor_data.rank;
 
-    assert_eq!(weight.dim, 2, "Weight must be a 2D tensor");
+    assert_eq!(rank, 2, "Weight must be a 2D tensor");
 
-    let shape = weight.shape.unwrap();
+    let new_shape = vec![shape[1], shape[0]];
 
-    match weight.data.expect("Tensor must have data") {
+    match data {
         Data::Float32s(data) => {
-            let data_t = transpose_flattened(data, shape[0], shape[1]);
-            node.inputs[1].value = Some(Data::Float32s(data_t));
+            let data_t = transpose_flattened(data.clone(), shape[0], shape[1]);
+
+            let tensor_data = TensorData {
+                data: Data::Float32s(data_t),
+                shape: new_shape,
+                elem_type,
+                rank,
+            };
+
+            node.inputs[1].value = Some(tensor_data);
         }
         Data::Float64s(data) => {
-            let data_t = transpose_flattened(data, shape[0], shape[1]);
-            node.inputs[1].value = Some(Data::Float64s(data_t));
+            let data_t = transpose_flattened(data.clone(), shape[0], shape[1]);
+
+            let tensor_data = TensorData {
+                data: Data::Float64s(data_t),
+                shape: new_shape,
+                elem_type,
+                rank,
+            };
+
+            node.inputs[1].value = Some(tensor_data);
         }
         Data::Float16s(data) => {
-            let data_t = transpose_flattened(data, shape[0], shape[1]);
-            node.inputs[1].value = Some(Data::Float16s(data_t));
+            let data_t = transpose_flattened(data.clone(), shape[0], shape[1]);
+
+            let tensor_data = TensorData {
+                data: Data::Float16s(data_t),
+                shape: new_shape,
+                elem_type,
+                rank,
+            };
+
+            node.inputs[1].value = Some(tensor_data);
         }
         _ => panic!("Only float types are supported for Linear node"),
     }
-    node.inputs[1].ty = ArgType::Tensor(TensorType {
-        elem_type: weight.elem_type,
-        rank: 2,
-    });
 }
 
 fn transpose_flattened<T: Copy>(matrix: Vec<T>, rows: usize, cols: usize) -> Vec<T> {

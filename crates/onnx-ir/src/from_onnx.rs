@@ -4,7 +4,10 @@ use std::{
     path::Path,
 };
 
-use crate::node_remap::remap_node_type;
+use crate::{
+    ir::{ArgType, TensorType},
+    node_remap::remap_node_type,
+};
 
 use super::{
     coalesce::coalesce,
@@ -39,18 +42,29 @@ pub(crate) enum IOEntry {
     Node(usize, usize),
 }
 
+/// GraphData stores intermediate processing state while converting from ONNX proto format to IR.
+/// It tracks nodes that have been processed, input/output arguments, initializer values,
+/// and maps between original ONNX names and internal IR names.
 pub struct GraphData {
-    /// The nodes that have been processed, used to copy the outputs to a child node
+    /// Nodes that have been processed during intermediate steps, containing output values for child node consumption
     processed_nodes: Vec<Node>,
-    /// The inputs of the graph
+
+    /// Original input arguments of the ONNX graph
     inputs: Vec<Argument>,
-    /// The outputs of the graph
+
+    /// Output arguments produced by the ONNX graph
     outputs: Vec<Argument>,
-    /// The initializers of the graph
+
+    /// Input/Output information for the graph
+    value_infos: Vec<Argument>,
+
+    /// Graph initializer parameters and their corresponding argument values
     pub(crate) initializers: HashMap<String, Argument>,
-    /// Maps the original input name to a graph input
+
+    /// Mapping between original ONNX input names and their corresponding graph input references
     input_name_map: HashMap<String, IOEntry>,
-    /// Maps the updated input name to the original input name. Required to check if the input is an initializer
+
+    /// Maps transformed input names back to original ONNX input names, allowing initializer validation
     input_key_map: HashMap<String, String>,
 }
 
@@ -59,6 +73,7 @@ impl GraphData {
         inputs: &[ValueInfoProto],
         outputs: &[ValueInfoProto],
         initializers: &[TensorProto],
+        value_infos: &[ValueInfoProto],
     ) -> Self {
         let mut input_name_map = HashMap::new();
         let mut input_key_map = HashMap::new();
@@ -71,6 +86,12 @@ impl GraphData {
             .iter()
             .map(|x| Argument::try_from(x.clone()).unwrap())
             .collect::<Vec<Argument>>();
+
+        let value_infos = value_infos
+            .iter()
+            .map(|x| Argument::try_from(x.clone()).unwrap())
+            .collect::<Vec<Argument>>();
+
         let inputs = inputs
             .iter()
             .enumerate()
@@ -95,6 +116,7 @@ impl GraphData {
         Self {
             inputs,
             outputs,
+            value_infos,
             initializers: constants,
             processed_nodes: Vec::new(),
             input_name_map,
@@ -185,27 +207,38 @@ impl GraphData {
     }
 }
 
+/// Builder to progressively construct an OnnxGraph from a ModelProto
+/// Handles constant node lifting, identity node elimination, node naming
+/// and other graph transformations during the build process
 #[derive(Default)]
 pub(crate) struct OnnxGraphBuilder {
-    /// Nodes to remove. Note may be moved to graph data if we implement support for custom ops
+    /// Set of node indices that should be removed from final graph
     nodes_to_remove: HashSet<usize>,
-    /// Map from constant node output names to indices of constant nodes
+    /// Maps constant node output names to their node indices
     constants_map: HashMap<String, usize>,
-    /// Node types that should be lifted to constants
+    /// Set of node types that should have their values lifted as constants
     constants_types: HashSet<NodeType>,
-    /// Map from identity node output names to indices of identity nodes
+    /// Maps identity node output names to their node indices
     identity_idx: HashMap<String, usize>,
+    /// Tracks count of nodes by type to generate unique names
     node_name_counter: HashMap<NodeType, usize>,
 }
 
 impl OnnxGraphBuilder {
     pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
+        // println!("{:#?}", model_proto);
+
         self.constants_types = LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
+
+        let value_info = &model_proto.graph.value_info;
+
+        println!("{:#?}", value_info);
 
         let mut graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
             &model_proto.graph.initializer,
+            &model_proto.graph.value_info,
         );
 
         let mut node_iter = model_proto.graph.node.iter().peekable();
@@ -235,6 +268,23 @@ impl OnnxGraphBuilder {
             i += 1;
             keep
         });
+
+        // Assert inputs have ranks
+        for input in &inputs {
+            match input.ty {
+                ArgType::Shape(rank) => {
+                    if rank == 0 {
+                        panic!("Graph input {} has no rank", input.name);
+                    }
+                }
+                ArgType::Tensor(TensorType { rank, .. }) => {
+                    if rank == 0 {
+                        panic!("Graph input {} has no rank", input.name);
+                    }
+                }
+                _ => {}
+            }
+        }
 
         // TODO Update graph inputs and outputs to match the processed nodes inputs and outputs
         // This is necessary for the graph to be valid
@@ -329,21 +379,22 @@ impl OnnxGraphBuilder {
     }
 }
 
-/// Open an onnx file and convert it to a Graph (intermediate representation)
+/// Parses an ONNX model file and converts it to an intermediate graph representation
 ///
 /// # Arguments
 ///
-/// * `onnx_path` - Path to the onnx file
+/// `onnx_path` - Path to the ONNX model file
 ///
 /// # Returns
 ///
-/// * `OnnxGraph` - The graph representation of the onnx file
+/// Returns an intermediate `OnnxGraph` representation
 ///
 /// # Panics
 ///
-/// * If the file cannot be opened
-/// * If the file cannot be parsed
-/// * If the nodes are not topologically sorted
+/// Panics if:
+/// - The file cannot be opened or read
+/// - The model cannot be parsed
+/// - The graph nodes are not in topological order
 pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     log::info!("Parsing ONNX file: {}", onnx_path.display());
 
@@ -408,7 +459,8 @@ pub(crate) fn remap_unsqueeze_to_reshape(_node: &mut Node, _out_arg: &Argument) 
     //     node.node_type = NodeType::Reshape;
     // }
 }
-// Define a trait for topological sorting
+
+/// A trait defining methods for checking topDefine a trait for topological sorting
 trait TopologicalSortable {
     fn is_top_sorted(&self) -> bool;
 }
@@ -445,7 +497,19 @@ impl TopologicalSortable for Vec<NodeProto> {
     }
 }
 
-/// Get the value of a constant node from its attributes
+/// Extracts and converts the constant value stored in a Node's attributes into an Argument
+///
+/// # Arguments
+///
+/// * `node` - The Node containing constant value attributes
+///
+/// # Returns
+///
+/// An Argument constructed from the node's constant value
+///
+/// # Panics
+///
+/// Panics if the node has no constant value attributes
 pub fn convert_constant_value(node: &Node) -> Argument {
     // A value can be stored in any of these attributes
     let keys = [

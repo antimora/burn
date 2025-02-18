@@ -5,6 +5,7 @@ mod node_remap;
 mod proto_conversion;
 mod protos;
 mod rank_inference;
+mod shape_rank;
 mod util;
 
 pub use from_onnx::convert_constant_value;

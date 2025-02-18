@@ -4,7 +4,7 @@ use core::panic;
 use protobuf::Enum;
 
 use crate::{
-    ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorType},
+    ir::{ArgType, AttributeValue, Data, ElementType, Node, NodeType, TensorData, TensorType},
     protos::tensor_proto::DataType,
     util::{flatten_config, shape_config},
 };
@@ -112,12 +112,12 @@ fn constant_update_outputs(node: &mut Node) {
     node.outputs[0].ty = match matched_value {
         Some(value) => match &value {
             // The value is stored in an attribute
-            AttributeValue::Tensor(tensor) if tensor.dim == 0 => {
+            AttributeValue::Tensor(tensor) if tensor.rank == 0 => {
                 ArgType::Scalar(tensor.elem_type.clone())
             }
             AttributeValue::Tensor(tensor) => ArgType::Tensor(TensorType {
                 elem_type: tensor.elem_type.clone(),
-                rank: tensor.dim,
+                rank: tensor.rank,
             }),
             AttributeValue::Float32(_) => ArgType::Scalar(ElementType::Float32),
             AttributeValue::Float32s(_) => ArgType::Tensor(TensorType {
@@ -292,7 +292,10 @@ fn concat_update_outputs(node: &mut Node) {
 fn reshape_update_outputs(node: &mut Node) {
     let shape = if node.inputs.len() == 2 {
         match &node.inputs[1].value {
-            Some(Data::Int64s(shape)) => shape.clone(),
+            Some(TensorData {
+                data: Data::Int64s(shape),
+                ..
+            }) => shape.clone(),
             _ => panic!("Reshape: missing or invalid shape input"),
         }
     } else {
@@ -368,26 +371,26 @@ fn argmax_update_outputs(node: &mut Node) {
 fn squeeze_update_output(node: &mut Node) {
     let axes = if node.inputs.len() == 2 {
         match &node.inputs[1].value {
-            Some(value) => match value {
-                Data::Int64s(axes) => Some(axes.clone()),
-                _ => panic!("Squeeze: invalid input types"),
-            },
-            None => None,
+            Some(TensorData {
+                data: Data::Int64s(axes),
+                ..
+            }) => axes.clone(),
+            _ => panic!("Squeeze: missing or invalid shape input"),
         }
     } else {
-        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
+        node.attrs
+            .get("axes")
+            .expect("Squeeze: missing axes attribute")
+            .clone()
+            .into_i64s()
     };
-
-    if axes.is_none() {
-        panic!("Squeeze must specify an axis");
-    }
 
     let input_dim = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => panic!("Squeeze: invalid input type"),
     };
 
-    let new_dim = input_dim - axes.unwrap().len();
+    let new_dim = input_dim - axes.len();
 
     let output_elem = match &node.outputs[0].ty {
         ArgType::Tensor(tensor) => tensor.elem_type.clone(),
@@ -425,19 +428,19 @@ fn same_as_input_broadcast(node: &mut Node) {
 fn unsqueeze_update_output(node: &mut Node) {
     let axes = if node.inputs.len() == 2 {
         match &node.inputs[1].value {
-            Some(value) => match value {
-                Data::Int64s(axes) => Some(axes.clone()),
-                _ => panic!("Unsqueeze: invalid input types"),
-            },
-            None => None,
+            Some(TensorData {
+                data: Data::Int64s(axes),
+                ..
+            }) => axes.clone(),
+            _ => panic!("Unsqueeze: missing or invalid shape input"),
         }
     } else {
-        node.attrs.get("axes").cloned().map(|v| v.into_i64s())
+        node.attrs
+            .get("axes")
+            .expect("Unsqueeze: missing axes attribute")
+            .clone()
+            .into_i64s()
     };
-
-    if axes.is_none() {
-        return;
-    }
 
     let input_dim = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
@@ -451,12 +454,10 @@ fn unsqueeze_update_output(node: &mut Node) {
         _ => panic!("Unsqueeze: invalid output type"),
     };
 
-    if let Some(axes) = axes {
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            rank: input_dim + axes.len(),
-            elem_type: output_elem,
-        });
-    }
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        rank: input_dim + axes.len(),
+        elem_type: output_elem,
+    });
 }
 
 fn same_as_input(node: &mut Node) {
@@ -503,14 +504,18 @@ fn elementwise_comparison_outputs(node: &mut Node) {
 fn expand_update_outputs(node: &mut Node) {
     let shape = if node.inputs.len() == 2 {
         match &node.inputs[1].value {
-            Some(value) => match value {
-                Data::Int64s(shape) => Some(shape.clone()),
-                _ => panic!("Expand: invalid input types"),
-            },
-            None => None,
+            Some(TensorData {
+                data: Data::Int64s(shape),
+                ..
+            }) => shape.clone(),
+            _ => vec![], //panic!("Expand: missing or invalid shape input"),
         }
     } else {
-        panic!("Expand: invalid number of inputs");
+        node.attrs
+            .get("shape")
+            .expect("Expand: missing shape attribute")
+            .clone()
+            .into_i64s()
     };
 
     let output = match &node.outputs[0].ty {
@@ -518,12 +523,10 @@ fn expand_update_outputs(node: &mut Node) {
         _ => panic!("Expand: invalid output types"),
     };
 
-    if let Some(shape) = shape {
-        node.outputs[0].ty = ArgType::Tensor(TensorType {
-            rank: shape.len(),
-            ..output
-        });
-    }
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        rank: shape.len(),
+        ..output
+    });
 }
 
 fn shape_update_outputs(node: &mut Node) {
@@ -737,11 +740,7 @@ fn reduce_sum_update_outputs(node: &mut Node) {
     };
 
     let dim_only = match node.inputs.get(1).and_then(|arg| arg.value.as_ref()) {
-        Some(value) => match &value {
-            Data::Int64(_) => true,
-            Data::Int64s(ints) => ints.len() == 1,
-            _ => false,
-        },
+        Some(value) => value.rank == 1 || value.rank == 0,
         None => dim_only,
     };
 

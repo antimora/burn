@@ -41,7 +41,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
             ExpandShape::Runtime(Type::Tensor(shape_tensor)) => {
                 // since we don't take ownership of the shape_tensor, we don't need `tensor_use_owned` here:
                 let tensor_name = &shape_tensor.name;
-                let dim = shape_tensor.shape.as_ref().unwrap()[0];
+                // FIXME Dilshod
+                // let dim = shape_tensor.shape.as_ref().unwrap()[0];
+
+                let dim = 0;
+
                 // the shape of the tensor is already validated statically to be rank one when parsing the input
                 // we'll need to download the Tensor from device to cpu for expand operation.
                 // Also, we'll need to convert it to an array for conversion into BroadcastArgs

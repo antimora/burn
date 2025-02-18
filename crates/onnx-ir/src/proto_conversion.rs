@@ -1,14 +1,15 @@
 use std::str::{from_utf8, FromStr};
 
 use crate::ir::TensorType;
+use crate::protos::type_proto;
 
 use super::from_onnx::GraphData;
 use super::ir::{
-    ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, Tensor,
+    ArgType, Argument, AttributeValue, Attributes, Data, ElementType, Node, NodeType, TensorData,
 };
 use super::protos::{
     attribute_proto::AttributeType, tensor_proto::DataType, tensor_shape_proto::dimension::Value,
-    type_proto, AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
+    AttributeProto, NodeProto, TensorProto, TensorShapeProto, ValueInfoProto,
 };
 
 use bytemuck::cast_slice;
@@ -21,9 +22,9 @@ pub enum ParseError {
 }
 
 /// Convert a vector of AttributeProto to a HashMap of AttributeValue
-impl TryFrom<TensorProto> for Tensor {
+impl TryFrom<TensorProto> for TensorData {
     type Error = ParseError;
-    fn try_from(tensor: TensorProto) -> Result<Tensor, Self::Error> {
+    fn try_from(tensor: TensorProto) -> Result<TensorData, Self::Error> {
         let (elem_type, data) = match DataType::from_i32(tensor.data_type).unwrap() {
             DataType::FLOAT => (
                 ElementType::Float32,
@@ -76,11 +77,11 @@ impl TryFrom<TensorProto> for Tensor {
         };
         let shape = convert_shape(tensor.dims);
 
-        Ok(Tensor {
+        Ok(TensorData {
             elem_type,
-            dim: shape.len(),
-            shape: Some(shape),
-            data: Some(data),
+            rank: shape.len(),
+            shape,
+            data,
         })
     }
 }
@@ -100,39 +101,39 @@ impl TryFrom<TensorShapeProto> for Vec<usize> {
     }
 }
 
-/// Convert a vector of AttributeProto to a HashMap of AttributeValue
-impl TryFrom<&type_proto::Tensor> for Tensor {
-    type Error = ParseError;
-    fn try_from(tensor: &type_proto::Tensor) -> Result<Tensor, Self::Error> {
-        let elem_type = match DataType::from_i32(tensor.elem_type).unwrap() {
-            DataType::FLOAT => ElementType::Float32,
-            DataType::INT32 => ElementType::Int32,
-            DataType::INT64 => ElementType::Int64,
-            DataType::DOUBLE => ElementType::Float64,
-            DataType::BOOL => ElementType::Bool,
+// /// Convert a vector of AttributeProto to a HashMap of AttributeValue
+// impl TryFrom<&type_proto::Tensor> for TensorData {
+//     type Error = ParseError;
+//     fn try_from(tensor: &type_proto::Tensor) -> Result<TensorData, Self::Error> {
+//         let elem_type = match DataType::from_i32(tensor.elem_type).unwrap() {
+//             DataType::FLOAT => ElementType::Float32,
+//             DataType::INT32 => ElementType::Int32,
+//             DataType::INT64 => ElementType::Int64,
+//             DataType::DOUBLE => ElementType::Float64,
+//             DataType::BOOL => ElementType::Bool,
 
-            // TODO : Add more types
-            _ => {
-                return Err(ParseError::VariantNotFound);
-            }
-        };
+//             // TODO : Add more types
+//             _ => {
+//                 return Err(ParseError::VariantNotFound);
+//             }
+//         };
 
-        let shape_proto = tensor.shape.clone().unwrap();
-        let shape: Vec<usize> = shape_proto.try_into().unwrap();
+//         let shape_proto = tensor.shape.clone().unwrap();
+//         let shape: Vec<usize> = shape_proto.try_into().unwrap();
 
-        Ok(Tensor {
-            elem_type,
-            dim: shape.len(),
-            shape: Some(shape),
-            data: None,
-        })
-    }
-}
+//         Ok(TensorData {
+//             elem_type,
+//             rank: shape.len(),
+//             shape: Some(shape),
+//             data: None,
+//         })
+//     }
+// }
 
-fn convert_vec_tensor_proto(tensors: Vec<TensorProto>) -> Result<Vec<Tensor>, ParseError> {
+fn convert_vec_tensor_proto(tensors: Vec<TensorProto>) -> Result<Vec<TensorData>, ParseError> {
     let mut result = Vec::new();
     for tensor in tensors {
-        result.push(Tensor::try_from(tensor)?);
+        result.push(TensorData::try_from(tensor)?);
     }
     Ok(result)
 }
@@ -148,7 +149,7 @@ impl TryFrom<AttributeProto> for AttributeValue {
             AttributeType::STRING => AttributeValue::String(to_string(attr.s)),
 
             // warning: tensor can be empty TODO: check if it is empty
-            AttributeType::TENSOR => AttributeValue::Tensor(Tensor::try_from(attr.t.unwrap())?),
+            AttributeType::TENSOR => AttributeValue::Tensor(TensorData::try_from(attr.t.unwrap())?),
 
             // Graph is not supported for now
             // AttributeType::GRAPH => AttributeValue::Graph(attr.g),

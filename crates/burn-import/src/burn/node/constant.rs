@@ -116,10 +116,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
 
     fn field_init(&self) -> Option<TokenStream> {
         match &self.value {
-            ConstantValue::Tensor(tensor_type, _) => {
+            ConstantValue::Tensor(tensor_type, tensor_data) => {
                 let ty = tensor_type.ty();
                 let name = Ident::new(self.name.as_ref(), Span::call_site());
-                let shape = tensor_type.clone().shape.unwrap().to_tokens();
+                let shape = tensor_data.shape.to_tokens();
 
                 Some(quote! {
                     let #name: burn::module::Param<#ty> = burn::nn::Initializer::Zeros.init(#shape, device).set_require_grad(false);
