@@ -1,0 +1,12 @@
+[default]
+extend-ignore-identifiers-re = ["NdArray*", "ND"]
+
+[files]
+extend-exclude = [
+    "*.onnx",
+    "*.proto",
+]
+
+[default.extend-words]
+# Don't correct "arange" which is intentional
+arange = "arange"
