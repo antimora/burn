@@ -20,8 +20,9 @@ default = ["mmap"]
 mmap = ["memmap2"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0", default-features = false }
 onnx-ir-derive = { path = "../onnx-ir-derive", version = "=0.21.0" }
+
+burn-tensor = { workspace = true }
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }
@@ -37,9 +38,7 @@ memmap2 = { workspace = true, optional = true }
 protobuf-codegen = { workspace = true }
 
 [dev-dependencies]
-pretty_assertions = { workspace = true }
 rstest = { workspace = true }
-tempfile = { workspace = true }
 divan = "0.1"
 
 [[bench]]

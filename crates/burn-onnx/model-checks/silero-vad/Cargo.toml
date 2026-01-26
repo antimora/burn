@@ -14,13 +14,13 @@ wgpu = []
 metal = []
 
 [dependencies]
-burn = { path = "../../../../crates/burn", features = [
+burn = { workspace = true, features = [
     "ndarray",
     "tch",
     "wgpu",
     "metal",
 ] }
-burn-store = { path = "../../../../crates/burn-store", features = ["burnpack"] }
+burn-store = { workspace = true, features = ["burnpack"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 

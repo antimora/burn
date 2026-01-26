@@ -1,0 +1,42 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry-run-only:
+        description: "Run xtask publish in dry-run mode (no publish)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  publish-burn-onnx:
+    needs:
+      - publish-onnx-ir
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
+    with:
+      crate: burn-onnx
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-onnx-ir-derive:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
+    with:
+      crate: onnx-ir-derive
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-onnx-ir:
+    needs:
+      - publish-onnx-ir-derive
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v6
+    with:
+      crate: onnx-ir
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}

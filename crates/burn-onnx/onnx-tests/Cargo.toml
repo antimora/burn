@@ -13,8 +13,8 @@ test-metal = ["burn/metal"]
 test-candle = ["burn/candle"]
 
 [dev-dependencies]
-burn = { path = "../../burn" }
-burn-store = { path = "../../burn-store", features = ["burnpack"] }
+burn = { workspace = true }
+burn-store = { workspace = true, features = ["burnpack"] }
 serde = { workspace = true }
 float-cmp = { workspace = true }
 

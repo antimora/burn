@@ -1,0 +1,83 @@
+[workspace]
+# Try
+# require version 2 to avoid "feature" additiveness for dev-dependencies
+# https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2
+resolver = "2"
+
+members = ["crates/*", "crates/burn-onnx/onnx-tests", "xtask"]
+
+exclude = [
+    "crates/burn-onnx/model-checks/*", # exclude model checking crates from workspace
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+version = "0.21.0"
+
+[workspace.lints.clippy]
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+invalid_html_tags = "deny"
+
+[workspace.dependencies]
+bytemuck = "1.24.0"
+derive-new = { version = "0.7.0", default-features = false }
+float-cmp = "0.10.0"
+insta = "1.45.0"
+log = { default-features = false, version = "0.4.29" }
+proc-macro2 = "1.0.104"
+quote = "1.0.42"
+rust-format = "0.3.4"
+tracing-core = { version = "0.1.36", default-features = false }
+tracing-subscriber = "0.3.20"
+syn = { version = "2.0.111", features = ["full", "extra-traits"] }
+
+# onnx-ir
+half = { version = "2.7.1", features = [
+    "alloc",
+    "num-traits",
+    "serde",
+], default-features = false }
+protobuf = "3.7.2"
+protobuf-codegen = "3.7.2"
+regex = { version = "1.12.1", default-features = false, features = [
+    "perf",
+    "unicode",
+] }
+rstest = "0.26.1"
+serde = { version = "1.0.228", default-features = false, features = [
+    "derive",
+    "alloc",
+] } # alloc is for no_std, derive is needed
+strum = { version = "0.27.2", features = ["derive"] }
+bytes = { version = "1.10", default-features = false }
+memmap2 = { version = "0.9" }
+
+### For the main burn branch. ###
+burn = { git = "https://github.com/tracel-ai/burn", default-features = false, rev = "44bbbe8c2cf10784fe3275f9a9c9933732b600e4" }
+burn-ndarray = { git = "https://github.com/tracel-ai/burn", default-features = false, rev = "44bbbe8c2cf10784fe3275f9a9c9933732b600e4" }
+burn-store = { git = "https://github.com/tracel-ai/burn", default-features = false, rev = "44bbbe8c2cf10784fe3275f9a9c9933732b600e4" }
+burn-tensor = { git = "https://github.com/tracel-ai/burn", default-features = false, rev = "44bbbe8c2cf10784fe3275f9a9c9933732b600e4" }
+
+### For local development. ###
+# burn = { path = "../burn/crates/burn", default-features = false }
+# burn-ndarray = { path = "../burn/crates/burn-ndarray", default-features = false }
+# burn-store = { path = "../burn/crates/burn-store", default-features = false }
+# burn-tensor = { path = "../burn/burn-tensor", default-features = false }
+
+### For the release. ###
+# burn = { version = "0.21.0", default-features = false }
+# burn-ndarray = { version = "0.21.0", default-features = false }
+# burn-store = { version = "0.21.0", default-features = false }
+# burn-tensor = { version = "0.21.0", default-features = false }
+
+### For xtask crate ###
+tracel-xtask = "=4.9.0"
+# ### For local development. ###
+# tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
+
+[profile.dev]
+debug = 1 # Speed up compilation time and not necessary.

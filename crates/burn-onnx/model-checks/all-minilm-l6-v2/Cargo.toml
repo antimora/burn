@@ -14,13 +14,13 @@ wgpu = []
 metal = []
 
 [dependencies]
-burn = { path = "../../../../crates/burn", features = [
+burn = { workspace = true, features = [
     "ndarray",
     "tch",
     "wgpu",
     "metal",
 ] }
-burn-store = { path = "../../../../crates/burn-store", features = ["burnpack", "pytorch"] }
+burn-store = { workspace = true, features = ["burnpack", "pytorch"] }
 
 [build-dependencies]
 burn-onnx = { path = "../../../burn-onnx" }
