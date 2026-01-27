@@ -192,7 +192,7 @@ jobs:
           cache-key: ${{ matrix.rust }}-linux-no-std
       # --------------------------------------------------------------------------------
       - name: Crates Build
-        run: cargo xtask --context no-std build --ci
+        run: cargo xtask --context no-std build
       # --------------------------------------------------------------------------------
       - name: Crates Tests
         run: cargo xtask --context no-std test ${{ env.TEST_RELEASE_FLAG }}
