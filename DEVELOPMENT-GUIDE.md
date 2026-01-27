@@ -42,9 +42,9 @@ For an introduction to ONNX import in Burn, see
 - Exclude any ONNX/Protobuf-specific logic from the Burn graph
 - **Feature Support Validation**: The [`onnx-ir`](crates/onnx-ir/) crate should extract and preserve
   all ONNX attributes faithfully, even if Burn does not yet support them. Rejection of unsupported
-  features should happen in [`burn-onnx`](crates/burn-onnx/) during code generation, not in `onnx-ir`
-  during configuration extraction. This allows `onnx-ir` to be reused by other projects that may have
-  different feature support
+  features should happen in [`burn-onnx`](crates/burn-onnx/) during code generation, not in
+  `onnx-ir` during configuration extraction. This allows `onnx-ir` to be reused by other projects
+  that may have different feature support
 
 The conversion process involves three main stages:
 
@@ -65,8 +65,7 @@ To extend `burn-onnx` with support for new ONNX operators, follow these steps:
 3. **Visualize ONNX Model**: Use [Netron](https://github.com/lutzroeder/netron) to verify the ONNX
    model contains the expected operators.
 
-4. **Generate IR and Burn Graph**: Navigate to
-   [crates/burn-onnx/](crates/burn-onnx/) and run:
+4. **Generate IR and Burn Graph**: Navigate to [crates/burn-onnx/](crates/burn-onnx/) and run:
 
    ```
    cargo r -- ../onnx-tests/tests/<op>/<op>.onnx ./out
@@ -80,9 +79,8 @@ To extend `burn-onnx` with support for new ONNX operators, follow these steps:
    the Burn model in Rust code, and `my-model.burnpack` contains the model weights.
 
 7. **Integration Test**: Include the test in the `tests/<op_name>/mod.rs` file in the
-   [crates/onnx-tests/tests/](crates/onnx-tests/tests/)
-   directory. Further details can be found in the
-   [onnx-tests README](crates/onnx-tests/README.md).
+   [crates/onnx-tests/tests/](crates/onnx-tests/tests/) directory. Further details can be found in
+   the [onnx-tests README](crates/onnx-tests/README.md).
 
 ## Implementing a New Operator
 
@@ -98,12 +96,14 @@ using a processor-based architecture. For each operation:
 
 1. **Create a node module** in `crates/onnx-ir/src/node/<operation_name>.rs`. This file should
    contain:
-   - **Configuration struct**: Define operation-specific parameters (e.g., `SqueezeConfig`)
+   - **Configuration struct**: Define operation-specific parameters (e.g., `SqueezeConfig`).
+     **Important**: Include ALL ONNX operator attributes, even if burn-onnx doesn't use them yet.
+     Use `Option<T>` for optional attributes.
    - **Processor struct**: Implement `NodeProcessor` trait (marked as `pub(crate)`)
    - The processor handles:
      - **Input/output specification**: Define expected inputs and outputs via `NodeSpec`
      - **Type inference**: Infer output types from inputs and configuration
-     - **Configuration extraction**: Extract operation parameters from ONNX attributes
+     - **Configuration extraction**: Extract ALL operation parameters from ONNX attributes
      - **Node construction**: Build the final `Node` enum variant with config
 
 2. **Make the module visible** in `crates/onnx-ir/src/node/mod.rs`:
@@ -416,8 +416,12 @@ When implementing a new operator, there are several levels of testing to conside
   See existing tests in `crates/onnx-ir/src/node/squeeze.rs` for examples.
 
 - **Code Generation**: Test the burn-onnx Node implementation to verify correct Rust code
-  generation. Each node file typically includes unit tests using `assert_tokens()` to validate
-  generated code against expected output.
+  generation. Use `insta` snapshot tests to cover as many code generation branches as possible:
+  - Each configuration option (e.g., different axis values, padding modes)
+  - Each input type variant (tensor, scalar, shape)
+  - Optional vs required inputs
+  - Different tensor ranks and data types
+  - Edge cases that trigger different code paths
 
 ### Integration Testing
 
@@ -431,16 +435,26 @@ conversion from ONNX models to Burn source code.
 - `tests/<op_name>/<op_name>.onnx`: Generated ONNX model
 - `tests/<op_name>/mod.rs`: Test implementation for the operator
 
-#### Setting Up Python Environment
+#### Python Script Format
 
-Use [`uv`](https://docs.astral.sh/uv/) to set up a Python environment:
+Use [`uv`](https://docs.astral.sh/uv/) inline script format for self-contained test scripts:
 
-```sh
-cd crates/onnx-tests
-uv sync
+```python
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# dependencies = [
+#   "onnx==1.19.0",
+#   "torch==2.1.1",
+# ]
+# ///
+
+import torch
+import onnx
+# ... rest of script
 ```
 
-Or manually: `pip install onnx==1.15.0 torch==2.1.1`
+This makes scripts executable without manual environment setup.
 
 #### Creating a Test for a New Operator
 
@@ -449,8 +463,19 @@ There are two approaches to generating ONNX files:
 **Approach 1: Exporting a PyTorch Model** (most common)
 
 ```python
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# dependencies = [
+#   "onnx==1.19.0",
+#   "torch==2.1.1",
+# ]
+# ///
+
 import torch
 import torch.nn as nn
+from onnx.reference import ReferenceEvaluator
+import onnx
 
 class MyModel(nn.Module):
     def __init__(self):
@@ -460,6 +485,7 @@ class MyModel(nn.Module):
         return my_operation(x)
 
 model = MyModel()
+torch.manual_seed(42)
 input_tensor = torch.randn(1, 3, 224, 224)
 
 torch.onnx.export(
@@ -472,10 +498,13 @@ torch.onnx.export(
     do_constant_folding=False  # Preserve operators
 )
 
-# Print for test verification
-output = model(input_tensor)
+# Verify with ONNX ReferenceEvaluator (ground truth)
+onnx_model = onnx.load("tests/my_new_op/my_new_op.onnx")
+ref = ReferenceEvaluator(onnx_model)
+outputs = ref.run(None, {"input": input_tensor.numpy()})
+
 print("Input:", input_tensor)
-print("Output:", output)
+print("Expected output:", outputs[0])
 ```
 
 **Approach 2: Constructing ONNX Graph Directly**
@@ -483,10 +512,21 @@ print("Output:", output)
 Useful when you need precise control over operator attributes:
 
 ```python
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# dependencies = [
+#   "onnx==1.19.0",
+#   "numpy",
+# ]
+# ///
+
 import numpy as np
 import onnx
 from onnx import TensorProto, helper
+from onnx.reference import ReferenceEvaluator
 
+np.random.seed(42)
 data = np.random.randn(5, 5, 5).astype(np.float32)
 indices = np.array([0, 2, 4], dtype=np.int64)
 
@@ -499,7 +539,20 @@ output_tensor = helper.make_tensor_value_info("output", TensorProto.FLOAT, [5, 3
 graph = helper.make_graph([node], "gather-model", [data_tensor, indices_tensor], [output_tensor])
 model = helper.make_model(graph)
 onnx.save(model, "tests/my_new_op/my_new_op.onnx")
+
+# Verify with ONNX ReferenceEvaluator (ground truth)
+ref = ReferenceEvaluator(model)
+outputs = ref.run(None, {"data": data, "indices": indices})
+
+print("Data:", data)
+print("Indices:", indices)
+print("Expected output:", outputs[0])
 ```
+
+#### Using ReferenceEvaluator
+
+Always use `onnx.reference.ReferenceEvaluator` to compute expected outputs. This is the official
+ONNX reference implementation and serves as ground truth for verifying Burn's output matches.
 
 #### Creating the Rust Test
 
@@ -536,6 +589,7 @@ cargo test --test test_mod my_new_op::test_my_new_op
 #### Best Practices
 
 **Model Generation:**
+
 - Keep models simple, focusing on single operators
 - Use fixed seeds for reproducibility: `torch.manual_seed(42)`
 - Print input/output tensors for reference
@@ -543,6 +597,7 @@ cargo test --test test_mod my_new_op::test_my_new_op
 - Use `do_constant_folding=False` if PyTorch optimizes away operators
 
 **Test Implementation:**
+
 - Test multiple input shapes, data types, and parameters
 - Include edge cases (empty tensors, single elements, large tensors)
 - Use appropriate numerical tolerance levels
