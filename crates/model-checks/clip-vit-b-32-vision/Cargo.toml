@@ -1,5 +1,5 @@
 [package]
-name = "burn-onnx-model-checks-all-minilm-l6-v2"
+name = "burn-onnx-model-checks-clip-vit-b-32-vision"
 version = "0.1.0"
 edition = "2024"
 publish = false
@@ -23,4 +23,4 @@ burn = { workspace = true, features = [
 burn-store = { workspace = true, features = ["burnpack", "pytorch"] }
 
 [build-dependencies]
-burn-onnx = { path = "../../../burn-onnx" }
+burn-onnx = { path = "../../burn-onnx" }

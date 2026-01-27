@@ -1,5 +1,5 @@
 [package]
-name = "burn-onnx-model-checks-rf-detr"
+name = "burn-onnx-model-checks-albert"
 version = "0.1.0"
 edition = "2024"
 publish = false
@@ -7,7 +7,7 @@ publish = false
 [workspace]
 
 [features]
-default = ["ndarray"]
+default = ["tch"]
 ndarray = []
 tch = []
 wgpu = []
@@ -23,4 +23,4 @@ burn = { workspace = true, features = [
 burn-store = { workspace = true, features = ["burnpack", "pytorch"] }
 
 [build-dependencies]
-burn-onnx = { path = "../../../burn-onnx" }
+burn-onnx = { path = "../../burn-onnx" }

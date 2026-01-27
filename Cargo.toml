@@ -4,10 +4,11 @@
 # https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2
 resolver = "2"
 
-members = ["crates/*", "crates/burn-onnx/onnx-tests", "xtask"]
+members = ["crates/*", "xtask"]
 
 exclude = [
-    "crates/burn-onnx/model-checks/*", # exclude model checking crates from workspace
+    "crates/model-checks",   # exclude model-checks parent directory
+    "crates/model-checks/*", # exclude model checking crates from workspace
 ]
 
 [workspace.package]
