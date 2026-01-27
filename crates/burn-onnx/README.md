@@ -9,6 +9,6 @@ Library for importing ONNX models into the [Burn](https://burn.dev) deep learnin
 ## Links
 
 - [Documentation](https://docs.rs/burn-onnx)
-- [Supported ONNX Operators](../../SUPPORTED-ONNX-OPS.md)
-- [ONNX Tests](../onnx-tests/README.md)
+- [Supported ONNX Operators](https://github.com/tracel-ai/burn-onnx/blob/main/SUPPORTED-ONNX-OPS.md)
+- [ONNX Tests](https://github.com/tracel-ai/burn-onnx/blob/main/crates/onnx-tests/README.md)
 - [Burn Book](https://burn.dev/book/)
