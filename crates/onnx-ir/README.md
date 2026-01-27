@@ -166,8 +166,8 @@ To add support for a new ONNX operator:
 
 - **Supported ONNX Operators**: For a full list of currently supported ONNX operators, please see
   the
-  [Supported ONNX Operators table](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/SUPPORTED-ONNX-OPS.md).
+  [Supported ONNX Operators table](https://github.com/tracel-ai/burn-onnx/blob/main/SUPPORTED-ONNX-OPS.md).
 
 - **Burn Integration**: ONNX-IR serves as the foundation for the ONNX import support in Burn. The
   conversion from ONNX-IR to Burn graphs is implemented in
-  [`burn-onnx/src/burn/`](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/src/burn/).
+  [`burn-onnx/src/burn/`](https://github.com/tracel-ai/burn-onnx/blob/main/crates/burn-onnx/src/burn/).
