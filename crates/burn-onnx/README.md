@@ -1,14 +1,13 @@
-# burn-onnx
+# Burn ONNX
 
-Library for importing ONNX models into the [Burn](https://burn.dev) deep learning framework.
+The `burn-onnx` crate enables seamless integration of pre-trained models from popular machine
+learning frameworks into the Burn ecosystem via the ONNX format.
 
-## Overview
+## ONNX Contributor Resources
 
-`burn-onnx` converts ONNX models into native Burn code, enabling seamless integration of pre-trained models from popular ML frameworks (PyTorch, TensorFlow, etc.) into the Burn ecosystem.
-
-## Links
-
-- [Documentation](https://docs.rs/burn-onnx)
-- [Supported ONNX Operators](https://github.com/tracel-ai/burn-onnx/blob/main/SUPPORTED-ONNX-OPS.md)
-- [ONNX Tests](https://github.com/tracel-ai/burn-onnx/blob/main/crates/onnx-tests/README.md)
-- [Burn Book](https://burn.dev/book/)
+- [ONNX to Burn conversion guide](https://burn.dev/books/contributor/guides/onnx-to-burn-conversion-tool.html) -
+  Instructions for adding support for additional ONNX operators
+- [ONNX tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/onnx-tests/README.md) -
+  Testing procedures for ONNX operators
+- [Supported ONNX Operators table](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/SUPPORTED-ONNX-OPS.md) -
+  Complete list of currently supported ONNX operators
