@@ -6,6 +6,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/onnx-ir-derive"
+readme = "README.md"
 
 [lints]
 workspace = true
