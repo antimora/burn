@@ -39,6 +39,11 @@ examples/
 - Entry point: `ModelGen` builder
 - **Important**: Rejection of unsupported features happens HERE, not in onnx-ir. If Burn API doesn't
   support a configuration, burn-onnx should emit a clear error during code generation
+- **Important**: Always generate the simplest and most efficient Burn Rust code possible. Avoid
+  emitting dead code, no-op loops, or redundant operations when the result can be determined at
+  codegen time
+- **Important**: When in doubt about Burn APIs, search online for the latest documentation rather
+  than guessing
 
 ## Coding Conventions
 

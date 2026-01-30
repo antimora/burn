@@ -100,9 +100,10 @@ impl NodeProcessor for ExpandProcessor {
         // Get input element type - Expand should preserve the input's element type
         let input_elem_type = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.dtype,
+            ArgType::Scalar(dtype) => *dtype,
             _ => {
                 return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor".to_string(),
+                    expected: "Tensor or Scalar".to_string(),
                     actual: format!("{:?}", node.inputs[0].ty),
                 });
             }
@@ -563,6 +564,50 @@ mod tests {
                 );
                 assert_eq!(tensor.rank, 2);
                 assert_eq!(tensor.static_shape, Some(vec![2, 3]));
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_expand_scalar_input_static_shape() {
+        let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
+            .input_scalar_f32("input")
+            .input_tensor_i64_data("shape", vec![2, 3], vec![2])
+            .output_tensor_f32("output", 0, None)
+            .build_with_graph_data(16);
+
+        let processor = ExpandProcessor;
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.dtype, DType::F32);
+                assert_eq!(tensor.rank, 2);
+                assert_eq!(tensor.static_shape, Some(vec![2, 3]));
+            }
+            _ => panic!("Expected tensor output"),
+        }
+    }
+
+    #[test]
+    fn test_expand_scalar_input_runtime_shape() {
+        let mut node = TestNodeBuilder::new(NodeType::Expand, "test_expand")
+            .input_scalar_i64("input")
+            .input_tensor_i64("shape", 1, Some(vec![4]))
+            .output_tensor_i64("output", 0, None)
+            .build();
+
+        let processor = ExpandProcessor;
+        let prefs = OutputPreferences::new();
+        processor.infer_types(&mut node, 16, &prefs).unwrap();
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(tensor) => {
+                assert_eq!(tensor.dtype, DType::I64);
+                assert_eq!(tensor.rank, 4);
+                assert_eq!(tensor.static_shape, None);
             }
             _ => panic!("Expected tensor output"),
         }
