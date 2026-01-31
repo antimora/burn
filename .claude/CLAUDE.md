@@ -13,6 +13,10 @@ crates/
 ├── burn-import/     # Legacy crate (deprecated, re-exports burn-onnx)
 └── model-checks/    # Real-world model validation (excluded from workspace)
 
+onnx-spec/
+├── fetch-specs.py   # Script to fetch/update ONNX operator specs
+└── ops/             # Per-operator markdown specs (auto-generated)
+
 examples/
 ├── onnx-inference/          # Standard inference example
 ├── image-classification-web/ # WASM/WebGPU example
@@ -63,6 +67,8 @@ examples/
 - Type inference happens in processors, not in codegen
 - **Strive for full ONNX opset coverage** - extract all attributes even if not yet used by burn-onnx
 - Config structs should include all ONNX operator attributes, using `Option<T>` for optional ones
+- **Reference `onnx-spec/ops/<OpName>.md`** for the official spec when implementing or reviewing
+  operators (attributes, inputs/outputs, type constraints)
 - **Declarative node architecture**: General processing in the onnx-ir framework (pipeline phases,
   graph state, type inference loop, etc.) must NOT contain node-type-specific logic. All
   node-specific behavior is declared in `NodeProcessor` implementations. If a general module needs
@@ -108,6 +114,7 @@ ONNX reference implementation and serves as ground truth.
 ## Adding a New ONNX Operator
 
 1. **onnx-ir**: Create node processor in `crates/onnx-ir/src/node/<op>.rs`
+   - Read `onnx-spec/ops/<OpName>.md` for the full operator spec
    - Define config struct with ALL ONNX attributes
    - Implement `NodeProcessor` trait
    - Register in `crates/onnx-ir/src/registry.rs`
@@ -154,6 +161,7 @@ cargo insta review
 - `crates/burn-onnx/src/burn/graph.rs` - Graph code generation
 - `SUPPORTED-ONNX-OPS.md` - Operator support table
 - `DEVELOPMENT-GUIDE.md` - Detailed implementation guide
+- `onnx-spec/ops/<OpName>.md` - Official ONNX operator specs (update with `./onnx-spec/fetch-specs.py`)
 
 ## Dependencies
 
