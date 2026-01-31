@@ -42,6 +42,8 @@ fn main() {
         .input("tests/avg_pool2d/avg_pool2d.onnx")
         .input("tests/avg_pool2d_ceil_mode/avg_pool2d_ceil_mode.onnx")
         .input("tests/batch_norm/batch_norm.onnx")
+        .input("tests/batch_norm/batch_norm_runtime.onnx")
+        .input("tests/batch_norm/batch_norm_partial_constant.onnx")
         .input("tests/bitshift/bitshift_left.onnx")
         .input("tests/bitshift/bitshift_left_scalar.onnx")
         .input("tests/bitshift/scalar_bitshift_left.onnx")
