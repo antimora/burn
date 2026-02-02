@@ -85,6 +85,11 @@ impl ProcessorRegistry {
         self.processors.insert(node_type, processor);
     }
 
+    /// Check if a processor is registered for the given node type
+    pub fn contains(&self, node_type: &NodeType) -> bool {
+        self.processors.contains_key(node_type)
+    }
+
     /// Get the processor for a node type, or the default processor if not found
     pub fn get(&self, node_type: &NodeType) -> &dyn ProcessorMethods {
         self.processors

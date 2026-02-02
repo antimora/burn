@@ -121,8 +121,7 @@ impl NodeProcessor for UnsupportedProcessor {
         _opset: usize,
         _output_preferences: &OutputPreferences,
     ) -> Result<(), ProcessError> {
-        // For unsupported nodes, we don't infer types
-        // They will keep whatever types were provided in the ONNX file
+        // Unsupported nodes keep whatever types were provided in the ONNX file.
         Ok(())
     }
 

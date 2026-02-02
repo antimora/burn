@@ -154,7 +154,47 @@ pub enum ProcessError {
         name: String,
         reason: String,
     },
+    UnsupportedOps(Vec<String>),
     Custom(String),
+}
+
+impl std::fmt::Display for ProcessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProcessError::UnsupportedOpset { required, actual } => {
+                write!(
+                    f,
+                    "Unsupported opset version: requires {required}, got {actual}"
+                )
+            }
+            ProcessError::MissingInput(name) => write!(f, "Missing input: {name}"),
+            ProcessError::MissingOutput(name) => write!(f, "Missing output: {name}"),
+            ProcessError::InvalidInputCount { expected, actual } => {
+                write!(f, "Invalid input count: expected {expected}, got {actual}")
+            }
+            ProcessError::InvalidOutputCount { expected, actual } => {
+                write!(f, "Invalid output count: expected {expected}, got {actual}")
+            }
+            ProcessError::TypeMismatch { expected, actual } => {
+                write!(f, "Type mismatch: expected {expected}, got {actual}")
+            }
+            ProcessError::ConflictingPreferences { output, details } => {
+                write!(
+                    f,
+                    "Conflicting preferences for output '{output}': {}",
+                    details.join(", ")
+                )
+            }
+            ProcessError::MissingAttribute(name) => write!(f, "Missing attribute: {name}"),
+            ProcessError::InvalidAttribute { name, reason } => {
+                write!(f, "Invalid attribute '{name}': {reason}")
+            }
+            ProcessError::UnsupportedOps(ops) => {
+                write!(f, "Unsupported ONNX operation(s): {}", ops.join(", "))
+            }
+            ProcessError::Custom(msg) => write!(f, "{msg}"),
+        }
+    }
 }
 
 /// Node-specific processing logic for type inference and configuration extraction

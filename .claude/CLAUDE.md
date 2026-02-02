@@ -77,6 +77,12 @@ examples/
   node-specific behavior is declared in `NodeProcessor` implementations. If a general module needs
   to handle a particular node type differently, that logic belongs in the node's processor, not in
   the framework code
+- **Processor registration is mandatory**: Every node type must be registered in `registry.rs`.
+  Unregistered types fall through to `DefaultProcessor` (which does `same_as_input`), producing
+  wrong type info for ops that change tensor rank. Type inference pre-checks for unregistered ops
+  and reports them all before processing
+- **`ProcessError` has a `Display` impl**: Use it for user-facing messages. Avoid formatting with
+  `{:?}` which exposes variant names like `Custom("...")`
 
 ### burn-onnx Patterns
 
@@ -157,8 +163,9 @@ cargo insta review
 
 ## Key Files to Know
 
-- `crates/onnx-ir/src/processor.rs` - NodeProcessor trait definition
-- `crates/onnx-ir/src/registry.rs` - Processor registration
+- `crates/onnx-ir/src/processor.rs` - NodeProcessor trait definition, ProcessError, DefaultProcessor
+- `crates/onnx-ir/src/registry.rs` - Processor registration (unregistered types use DefaultProcessor)
+- `crates/onnx-ir/src/phases/type_inference.rs` - Iterative type inference with unsupported op detection
 - `crates/onnx-ir/src/ir/node.rs` - Node enum and define_node_enum! macro
 - `crates/burn-onnx/src/burn/node_codegen.rs` - Codegen dispatch macro
 - `crates/burn-onnx/src/burn/graph.rs` - Graph code generation

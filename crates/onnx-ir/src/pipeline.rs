@@ -79,10 +79,10 @@ impl fmt::Display for Error {
                 )
             }
             Error::TypeInference(e) => {
-                write!(f, "Type inference failed: {:?}", e)
+                write!(f, "Type inference failed: {e}")
             }
             Error::Processing(e) => {
-                write!(f, "Processing error: {:?}", e)
+                write!(f, "Processing error: {e}")
             }
         }
     }
