@@ -16,7 +16,8 @@ impl NodeCodegen for onnx_ir::max_pool1d::MaxPool1dNode {
         let dilation = self.config.dilation.to_tokens();
         let ceil_mode = self.config.ceil_mode;
 
-        let input_spatial = self.inputs[0].ty.static_shape().map(|s| &s[2..]);
+        let shape = self.inputs[0].ty.static_shape_known();
+        let input_spatial = shape.as_deref().map(|s| &s[2..]);
         let padding = crate::burn::codegen::resolve_auto_pad_1d(
             &self.config.auto_pad,
             &self.config.padding,
@@ -164,7 +165,8 @@ mod tests {
 
     #[test]
     fn test_max_pool1d_field_init_auto_pad_same_upper() {
-        let config = MaxPool1dConfig::new(3, 1, 1, PaddingConfig1d::Valid, false, AutoPad::SameUpper);
+        let config =
+            MaxPool1dConfig::new(3, 1, 1, PaddingConfig1d::Valid, false, AutoPad::SameUpper);
         let node = MaxPool1dNodeBuilder::new("pool1")
             .input_tensor_shape("input", vec![1, 3, 7], DType::F32)
             .output_tensor("output", 3, DType::F32)

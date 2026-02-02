@@ -31,8 +31,6 @@ pub struct Conv3dNode {
 #[derive(Debug, Clone, PartialEq, Eq, new)]
 #[allow(clippy::too_many_arguments)]
 pub struct Conv3dConfig {
-    /// Input and output channels [in, out].
-    pub channels: [usize; 2],
     /// Size of the kernel.
     pub kernel_size: [usize; 3],
     /// Stride of the convolutional kernel.
@@ -41,8 +39,6 @@ pub struct Conv3dConfig {
     pub dilation: [usize; 3],
     /// Groups.
     pub groups: usize,
-    /// Use bias.
-    pub bias: bool,
     /// Padding.
     pub padding: PaddingConfig3d,
     /// Auto padding mode
@@ -103,9 +99,6 @@ impl NodeProcessor for Conv3dProcessor {
             .shape
             .to_vec();
 
-        // check if the bias is present
-        let bias = node.inputs.len() == 3;
-
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "kernel_shape" => kernel_shape = value.clone().into_i64s(),
@@ -127,10 +120,6 @@ impl NodeProcessor for Conv3dProcessor {
             }
         }
 
-        // the channels are inverted in the weight tensor
-        let channels_in = weight_shape[1] * group;
-        let channels_out = weight_shape[0];
-
         let padding = padding_config_3d(&pads);
 
         let kernel_size = if kernel_shape.is_empty() {
@@ -151,7 +140,6 @@ impl NodeProcessor for Conv3dProcessor {
         };
 
         let config = Conv3dConfig::new(
-            [channels_in, channels_out],
             kernel_size,
             [
                 strides[0] as usize,
@@ -164,7 +152,6 @@ impl NodeProcessor for Conv3dProcessor {
                 dilations[2] as usize,
             ],
             group,
-            bias,
             padding,
             auto_pad,
         );
@@ -254,12 +241,12 @@ mod tests {
         let config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert_eq!(config.channels, [2, 4]);
+        // channels removed from config (derived in burn-onnx)
         assert_eq!(config.kernel_size, [2, 2, 2]);
         assert_eq!(config.stride, [1, 1, 1]);
         assert_eq!(config.dilation, [1, 1, 1]);
         assert_eq!(config.groups, 1);
-        assert!(!config.bias);
+        // bias removed from config (derived in burn-onnx)
         assert!(matches!(config.padding, PaddingConfig3d::Valid));
     }
 
@@ -307,28 +294,7 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(config.groups, 2);
-        assert_eq!(config.channels, [4, 4]); // channels_in is adjusted by groups
-    }
-
-    #[test]
-    fn test_conv3d_config_with_bias() {
-        let node = create_test_node(
-            vec![2, 2, 2],
-            vec![1, 1, 1],
-            vec![0, 0, 0, 0, 0, 0],
-            vec![1, 1, 1],
-            1,
-            true,
-            None,
-        )
-        .build_with_graph_data(16);
-        let mut node = node;
-        let processor = Conv3dProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        assert!(config.bias);
+        // channels removed from config (derived in burn-onnx)
     }
 
     #[test]
@@ -349,12 +315,12 @@ mod tests {
         let config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert_eq!(config.channels, [2, 4]);
+        // channels removed from config (derived in burn-onnx)
         assert_eq!(config.kernel_size, [2, 2, 2]);
         assert_eq!(config.stride, [1, 1, 1]);
         assert_eq!(config.dilation, [1, 1, 1]);
         assert_eq!(config.groups, 1);
-        assert!(!config.bias);
+        // bias removed from config (derived in burn-onnx)
         assert!(matches!(config.padding, PaddingConfig3d::Valid));
     }
 

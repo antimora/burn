@@ -154,6 +154,23 @@ pub fn node_builder_derive(input: TokenStream) -> TokenStream {
                 self
             }
 
+            /// Add a static tensor input with fully-known shape (not a forward parameter)
+            pub fn input_static_tensor_shape(
+                mut self,
+                name: &str,
+                shape: Vec<usize>,
+                dtype: burn_tensor::DType,
+            ) -> Self {
+                use crate::ir::{Argument, ArgType, TensorType, ValueSource};
+                let mut arg = Argument::new(
+                    name,
+                    ArgType::Tensor(TensorType::new_known(dtype, shape)),
+                );
+                arg.value_source = ValueSource::Static(0);
+                self.inputs.push(arg);
+                self
+            }
+
             /// Add a scalar input
             pub fn input_scalar(mut self, name: &str, dtype: burn_tensor::DType) -> Self {
                 use crate::ir::{Argument, ArgType};

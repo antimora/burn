@@ -15,7 +15,11 @@ impl NodeCodegen for BatchNormalizationNode {
         match &self.config {
             BatchNormConfig::Static(config) => {
                 let name = Ident::new(&self.name, Span::call_site());
-                let num_features = config.num_features.to_tokens();
+                let scale_shape = self.inputs[1]
+                    .ty
+                    .static_shape_known()
+                    .expect("BatchNorm: scale tensor shape must be known at codegen time");
+                let num_features = scale_shape[0].to_tokens();
                 let epsilon = config.epsilon;
                 let momentum = config.momentum;
 
@@ -159,10 +163,14 @@ mod tests {
     };
 
     fn create_batch_norm_node(name: &str) -> BatchNormalizationNode {
-        let config = BatchNormConfig::Static(BatchNormStaticConfig::new(64, 1e-5, 0.9));
+        let config = BatchNormConfig::Static(BatchNormStaticConfig::new(1e-5, 0.9));
 
         BatchNormalizationNodeBuilder::new(name)
             .input_tensor("input", 4, DType::F32)
+            .input_static_tensor_shape("scale", vec![64], DType::F32)
+            .input_static_tensor_shape("bias", vec![64], DType::F32)
+            .input_static_tensor_shape("mean", vec![64], DType::F32)
+            .input_static_tensor_shape("var", vec![64], DType::F32)
             .output_tensor("output", 4, DType::F32)
             .config(config)
             .build()

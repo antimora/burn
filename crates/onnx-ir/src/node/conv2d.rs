@@ -30,8 +30,6 @@ pub struct Conv2dNode {
 #[derive(Debug, Clone, new)]
 #[allow(clippy::too_many_arguments)]
 pub struct Conv2dConfig {
-    /// Channels [in, out]
-    pub channels: [usize; 2],
     /// Kernel size [height, width]
     pub kernel_size: [usize; 2],
     /// Stride [height, width]
@@ -42,8 +40,6 @@ pub struct Conv2dConfig {
     pub dilation: [usize; 2],
     /// Number of groups
     pub groups: usize,
-    /// Whether bias is used
-    pub bias: bool,
     /// Auto padding mode
     pub auto_pad: AutoPad,
 }
@@ -207,8 +203,6 @@ impl NodeProcessor for Conv2dProcessor {
             .shape
             .to_vec();
 
-        let bias = node.inputs.len() == 3;
-
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
                 "kernel_shape" => kernel_shape = value.clone().into_i64s(),
@@ -220,9 +214,6 @@ impl NodeProcessor for Conv2dProcessor {
                 _ => {}
             }
         }
-
-        let channels_in = weight_shape[1] * group;
-        let channels_out = weight_shape[0];
 
         let padding = padding_config_2d(&pads);
 
@@ -239,13 +230,11 @@ impl NodeProcessor for Conv2dProcessor {
         };
 
         let config = Conv2dConfig::new(
-            [channels_in, channels_out],
             kernel_size,
             [strides[0] as usize, strides[1] as usize],
             padding,
             [dilations[0] as usize, dilations[1] as usize],
             group,
-            bias,
             auto_pad,
         );
 
@@ -330,12 +319,10 @@ mod tests {
         let config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert_eq!(config.channels, [2, 4]);
         assert_eq!(config.kernel_size, [2, 2]);
         assert_eq!(config.stride, [1, 1]);
         assert_eq!(config.dilation, [1, 1]);
         assert_eq!(config.groups, 1);
-        assert!(!config.bias);
         assert!(matches!(config.padding, PaddingConfig2d::Valid));
     }
 
@@ -383,28 +370,6 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(config.groups, 2);
-        assert_eq!(config.channels, [4, 4]); // channels_in is adjusted by groups
-    }
-
-    #[test]
-    fn test_conv2d_config_with_bias() {
-        let node = create_test_node(
-            vec![2, 2],
-            vec![1, 1],
-            vec![0, 0, 0, 0],
-            vec![1, 1],
-            1,
-            true,
-            None,
-        )
-        .build_with_graph_data(16);
-        let mut node = node;
-        let processor = Conv2dProcessor;
-        let prefs = OutputPreferences::new();
-        let config = processor.extract_config(&node, 16).unwrap();
-        processor.infer_types(&mut node, 16, &prefs).unwrap();
-
-        assert!(config.bias);
     }
 
     #[test]

@@ -31,10 +31,6 @@ pub struct Conv1dNode {
 #[derive(Debug, Clone, new)]
 #[allow(clippy::too_many_arguments)]
 pub struct Conv1dConfig {
-    /// Input channels
-    pub channels_in: usize,
-    /// Output channels
-    pub channels_out: usize,
     /// Kernel size
     pub kernel_size: usize,
     /// Stride
@@ -43,8 +39,6 @@ pub struct Conv1dConfig {
     pub dilation: usize,
     /// Number of groups
     pub groups: usize,
-    /// Whether bias is used
-    pub bias: bool,
     /// Padding configuration (from explicit pads attribute)
     pub padding: PaddingConfig1d,
     /// Auto padding mode
@@ -202,23 +196,13 @@ impl NodeProcessor for Conv1dProcessor {
         let mut group: usize = 1;
         let mut auto_pad = AutoPad::NotSet;
 
-        let weight_arg = &node.inputs[1];
-        log::debug!(
-            "Conv1d '{}' weight arg: name='{}', value_source={:?}, has_store={}",
-            node.name,
-            weight_arg.name,
-            weight_arg.value_source,
-            weight_arg.value_store.is_some()
-        );
-        let weight_shape = weight_arg
+        let weight_shape = node.inputs[1]
             .value()
             .ok_or_else(|| {
                 ProcessError::Custom("Conv1d: weight tensor must be present".to_string())
             })?
             .shape
             .to_vec();
-
-        let bias = node.inputs.len() == 3;
 
         for (key, value) in node.attrs.iter() {
             match key.as_str() {
@@ -231,9 +215,6 @@ impl NodeProcessor for Conv1dProcessor {
                 _ => {}
             }
         }
-
-        let channels_in = weight_shape[1] * group;
-        let channels_out = weight_shape[0];
 
         let padding = padding_config_1d(&pads);
 
@@ -250,13 +231,10 @@ impl NodeProcessor for Conv1dProcessor {
         };
 
         let config = Conv1dConfig::new(
-            channels_in,
-            channels_out,
             kernel_size,
             strides[0] as usize,
             dilations[0] as usize,
             group,
-            bias,
             padding,
             auto_pad,
         );
@@ -341,13 +319,10 @@ mod tests {
         let config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert_eq!(config.channels_in, 2);
-        assert_eq!(config.channels_out, 2);
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
         assert_eq!(config.dilation, 1);
         assert_eq!(config.groups, 1);
-        assert!(!config.bias);
         assert!(matches!(config.padding, PaddingConfig1d::Valid));
     }
 
@@ -361,13 +336,10 @@ mod tests {
         let config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert_eq!(config.channels_in, 2);
-        assert_eq!(config.channels_out, 2);
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 2);
         assert_eq!(config.dilation, 1);
         assert_eq!(config.groups, 1);
-        assert!(config.bias);
         assert!(matches!(config.padding, PaddingConfig1d::Explicit(2, 2)));
     }
 
@@ -381,13 +353,10 @@ mod tests {
         let config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert_eq!(config.channels_in, 2);
-        assert_eq!(config.channels_out, 2);
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
         assert_eq!(config.dilation, 2);
         assert_eq!(config.groups, 1);
-        assert!(!config.bias);
         assert!(matches!(config.padding, PaddingConfig1d::Valid));
     }
 
@@ -401,13 +370,10 @@ mod tests {
         let config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert_eq!(config.channels_in, 4);
-        assert_eq!(config.channels_out, 2);
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
         assert_eq!(config.dilation, 1);
         assert_eq!(config.groups, 2);
-        assert!(!config.bias);
         assert!(matches!(config.padding, PaddingConfig1d::Valid));
     }
 
@@ -449,13 +415,10 @@ mod tests {
         let config = processor.extract_config(&node, 16).unwrap();
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
-        assert_eq!(config.channels_in, 2);
-        assert_eq!(config.channels_out, 2);
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 1);
         assert_eq!(config.dilation, 1);
         assert_eq!(config.groups, 1);
-        assert!(!config.bias);
         assert!(matches!(config.padding, PaddingConfig1d::Valid));
     }
 

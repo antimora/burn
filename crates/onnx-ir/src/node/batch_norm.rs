@@ -37,8 +37,6 @@ pub enum BatchNormConfig {
 /// Static BatchNorm config — all weights are known at build time.
 #[derive(Debug, Clone, new)]
 pub struct BatchNormStaticConfig {
-    /// Number of features (channels)
-    pub num_features: usize,
     /// Small constant added for numerical stability
     pub epsilon: f64,
     /// Momentum for running statistics
@@ -143,10 +141,8 @@ impl NodeProcessor for BatchNormProcessor {
         // Check if all weight inputs (1-4) have static values
         let all_static = (1..=4).all(|i| node.inputs[i].value().is_some());
 
-        if let (true, Some(weight_tensor)) = (all_static, node.inputs[1].value()) {
-            let num_features = weight_tensor.shape[0];
+        if all_static {
             Ok(BatchNormConfig::Static(BatchNormStaticConfig::new(
-                num_features,
                 epsilon as f64,
                 momentum as f64,
             )))
@@ -216,7 +212,6 @@ mod tests {
 
         match config {
             BatchNormConfig::Static(c) => {
-                assert_eq!(c.num_features, 64);
                 assert!(f64::abs(c.epsilon - 1e-5) < 1e-6);
                 assert!(f64::abs(c.momentum - 0.9) < 1e-6);
             }
@@ -235,7 +230,6 @@ mod tests {
 
         match config {
             BatchNormConfig::Static(c) => {
-                assert_eq!(c.num_features, 32);
                 assert!(f64::abs(c.epsilon - 0.0) < 1e-6);
                 assert!(f64::abs(c.momentum - 0.0) < 1e-6);
             }
