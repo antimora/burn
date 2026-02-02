@@ -70,7 +70,7 @@ pub struct ElementwiseUnaryNode {
 }
 
 /// Node processor for element-wise unary operations that don't yet have
-/// dedicated processors (Elu, Selu, Celu, Mish, Softplus, Softsign,
+/// dedicated processors (Elu, Selu, Celu, Softplus, Softsign,
 /// ThresholdedRelu). Will be removed as these ops get their own processors.
 #[allow(dead_code)]
 pub(crate) struct ElementwiseUnaryProcessor;
@@ -103,7 +103,6 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             crate::ir::NodeType::Elu => 6,
             crate::ir::NodeType::Selu => 6,
             crate::ir::NodeType::Celu => 12,
-            crate::ir::NodeType::Mish => 18,
             crate::ir::NodeType::Softplus => 1,
             crate::ir::NodeType::Softsign => 1,
             crate::ir::NodeType::ThresholdedRelu => 10,
@@ -136,7 +135,6 @@ impl NodeProcessor for ElementwiseUnaryProcessor {
             NodeType::Elu => Node::Elu(node),
             NodeType::Selu => Node::Selu(node),
             NodeType::Celu => Node::Celu(node),
-            NodeType::Mish => Node::Mish(node),
             NodeType::Softplus => Node::Softplus(node),
             NodeType::Softsign => Node::Softsign(node),
             NodeType::ThresholdedRelu => Node::ThresholdedRelu(node),
