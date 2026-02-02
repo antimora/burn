@@ -16,7 +16,16 @@ impl NodeCodegen for onnx_ir::node::avg_pool2d::AveragePool2dNode {
         let count_include_pad = self.config.count_include_pad;
         let ceil_mode = self.config.ceil_mode;
 
-        let padding = self.config.padding.to_tokens();
+        let input_spatial = self.inputs[0].ty.static_shape().map(|s| &s[2..]);
+        let padding = crate::burn::codegen::resolve_auto_pad_2d(
+            &self.config.auto_pad,
+            &self.config.padding,
+            input_spatial,
+            &self.config.kernel_size,
+            &self.config.strides,
+            &self.config.dilation,
+        )
+        .to_tokens();
 
         Some(Field::new(
             self.name.clone(),
@@ -57,7 +66,7 @@ mod tests {
     use burn::tensor::DType;
     use insta::assert_snapshot;
     use onnx_ir::node::avg_pool2d::{AveragePool2dNode, AveragePool2dNodeBuilder, AvgPool2dConfig};
-    use onnx_ir::padding::PaddingConfig2d;
+    use onnx_ir::padding::{AutoPad, PaddingConfig2d};
 
     fn create_avg_pool2d_node(name: &str, ceil_mode: bool) -> AveragePool2dNode {
         let config = AvgPool2dConfig::new(
@@ -67,6 +76,7 @@ mod tests {
             false,
             [1, 1],
             ceil_mode,
+            AutoPad::NotSet,
         );
 
         AveragePool2dNodeBuilder::new(name)
@@ -85,6 +95,7 @@ mod tests {
             false,
             [1, 1],
             false,
+            AutoPad::NotSet,
         );
 
         AveragePool2dNodeBuilder::new(name)
@@ -142,6 +153,27 @@ mod tests {
             .with_padding(PaddingConfig2d::Valid)
             .with_count_include_pad(false)
             .with_ceil_mode(true)
+            .init();
+        "#);
+    }
+
+    #[test]
+    fn test_avg_pool2d_field_init_auto_pad_same_upper() {
+        let config = AvgPool2dConfig::new(
+            [3, 3], [1, 1], PaddingConfig2d::Valid, false, [1, 1], false, AutoPad::SameUpper,
+        );
+        let node = AveragePool2dNodeBuilder::new("pool1")
+            .input_tensor_shape("input", vec![1, 3, 7, 7], DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_field_init(&node);
+        assert_snapshot!(code, @r#"
+        let pool1 = AvgPool2dConfig::new([3, 3])
+            .with_strides([1, 1])
+            .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
+            .with_count_include_pad(false)
+            .with_ceil_mode(false)
             .init();
         "#);
     }

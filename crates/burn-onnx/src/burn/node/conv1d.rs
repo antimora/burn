@@ -21,7 +21,16 @@ impl NodeCodegen for onnx_ir::conv1d::Conv1dNode {
         let groups = self.config.groups.to_tokens();
         let bias = self.config.bias;
 
-        let padding = self.config.padding.to_tokens();
+        let input_spatial = self.inputs[0].ty.static_shape().map(|s| &s[2..]);
+        let padding = crate::burn::codegen::resolve_auto_pad_1d(
+            &self.config.auto_pad,
+            &self.config.padding,
+            input_spatial,
+            self.config.kernel_size,
+            self.config.stride,
+            self.config.dilation,
+        )
+        .to_tokens();
 
         Some(Field::new(
             self.name.clone(),
@@ -86,10 +95,20 @@ mod tests {
     use burn::tensor::DType;
     use insta::assert_snapshot;
     use onnx_ir::conv1d::{Conv1dConfig, Conv1dNode, Conv1dNodeBuilder};
-    use onnx_ir::padding::PaddingConfig1d;
+    use onnx_ir::padding::{AutoPad, PaddingConfig1d};
 
     fn create_conv1d_node(name: &str) -> Conv1dNode {
-        let config = Conv1dConfig::new(3, 64, 3, 1, 1, 1, true, PaddingConfig1d::Explicit(1, 1));
+        let config = Conv1dConfig::new(
+            3,
+            64,
+            3,
+            1,
+            1,
+            1,
+            true,
+            PaddingConfig1d::Explicit(1, 1),
+            AutoPad::NotSet,
+        );
 
         Conv1dNodeBuilder::new(name)
             .input_tensor("input", 3, DType::F32)
@@ -100,7 +119,17 @@ mod tests {
 
     fn create_conv1d_node_asymmetric(name: &str) -> Conv1dNode {
         // Asymmetric padding: left=1, right=2
-        let config = Conv1dConfig::new(3, 64, 3, 1, 1, 1, true, PaddingConfig1d::Explicit(1, 2));
+        let config = Conv1dConfig::new(
+            3,
+            64,
+            3,
+            1,
+            1,
+            1,
+            true,
+            PaddingConfig1d::Explicit(1, 2),
+            AutoPad::NotSet,
+        );
 
         Conv1dNodeBuilder::new(name)
             .input_tensor("input", 3, DType::F32)
@@ -130,6 +159,26 @@ mod tests {
             let output = self.conv1.forward(input.clone());
             output
         }
+        ");
+    }
+
+    #[test]
+    fn test_conv1d_field_init_auto_pad_same_upper() {
+        let config = Conv1dConfig::new(3, 64, 3, 1, 1, 1, true, PaddingConfig1d::Valid, AutoPad::SameUpper);
+        let node = Conv1dNodeBuilder::new("conv1")
+            .input_tensor_shape("input", vec![1, 3, 7], DType::F32)
+            .output_tensor("output", 3, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_field_init(&node);
+        assert_snapshot!(code, @r"
+        let conv1 = Conv1dConfig::new(3, 64, 3)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Explicit(1, 1))
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
         ");
     }
 
