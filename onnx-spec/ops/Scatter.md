@@ -1,6 +1,8 @@
 # Scatter
 
-Since opset **11**
+First introduced in opset **9**
+
+All versions: 9, 11
 
 ## Description
 
@@ -78,3 +80,8 @@ Example 2:
   Input and output types can be of any tensor type.
 - **Tind**: tensor(int32), tensor(int64)
   Constrain indices to integer types
+
+## Version History
+
+- **Opset 11**: Types: tensor(bool), tensor(complex128), tensor(complex64), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(string), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 9**: Types: tensor(bool), tensor(complex128), tensor(complex64), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(string), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)

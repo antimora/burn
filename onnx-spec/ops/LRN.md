@@ -1,6 +1,8 @@
 # LRN
 
-Since opset **13**
+First introduced in opset **1**
+
+All versions: 1, 13
 
 ## Description
 
@@ -34,3 +36,8 @@ where `max(0, c - floor((size - 1) / 2)) <= i <= min(C - 1, c + ceil((size - 1) 
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input and output  types to float tensors.
+
+## Version History
+
+- **Opset 13**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

@@ -1,6 +1,6 @@
 # DynamicQuantizeLinear
 
-Since opset **11**
+First introduced in opset **11**
 
 ## Description
 

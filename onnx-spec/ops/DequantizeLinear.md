@@ -1,6 +1,8 @@
 # DequantizeLinear
 
-Since opset **24**
+First introduced in opset **10**
+
+All versions: 10, 13, 19, 21, 23, 24
 
 ## Description
 
@@ -40,3 +42,12 @@ is the same as `x_scale`. The output type also determines the precision of the m
   The type of the input 'x_scale'.
 - **T3**: tensor(bfloat16), tensor(float), tensor(float16)
   The type of the output 'y'.
+
+## Version History
+
+- **Opset 24**: Types: tensor(float4e2m1), tensor(float8e4m3fn), tensor(float8e4m3fnuz), tensor(float8e5m2), tensor(float8e5m2fnuz), tensor(int16), tensor(int32), tensor(int4), tensor(int8), tensor(uint16), tensor(uint4), tensor(uint8)
+- **Opset 23**: Types: tensor(float4e2m1), tensor(float8e4m3fn), tensor(float8e4m3fnuz), tensor(float8e5m2), tensor(float8e5m2fnuz), tensor(int16), tensor(int32), tensor(int4), tensor(int8), tensor(uint16), tensor(uint4), tensor(uint8)
+- **Opset 21**: Types: tensor(float8e4m3fn), tensor(float8e4m3fnuz), tensor(float8e5m2), tensor(float8e5m2fnuz), tensor(int16), tensor(int32), tensor(int4), tensor(int8), tensor(uint16), tensor(uint4), tensor(uint8)
+- **Opset 19**: Types: tensor(float8e4m3fn), tensor(float8e4m3fnuz), tensor(float8e5m2), tensor(float8e5m2fnuz), tensor(int32), tensor(int8), tensor(uint8)
+- **Opset 13**: Types: tensor(int32), tensor(int8), tensor(uint8)
+- **Opset 10**: Types: tensor(int32), tensor(int8), tensor(uint8)

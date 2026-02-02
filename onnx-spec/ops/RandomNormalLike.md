@@ -1,6 +1,8 @@
 # RandomNormalLike
 
-Since opset **22**
+First introduced in opset **1**
+
+All versions: 1, 22
 
 ## Description
 
@@ -33,3 +35,8 @@ TensorProto message, and be valid as an output type.
   Constrain to any tensor type. If the dtype attribute is not provided this must be a valid output type.
 - **T2**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain output types to float tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(bool), tensor(complex128), tensor(complex64), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(string), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 1**: Types: tensor(bool), tensor(complex128), tensor(complex64), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(string), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)

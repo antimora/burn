@@ -1,6 +1,8 @@
 # RandomUniform
 
-Since opset **22**
+First introduced in opset **1**
+
+All versions: 1, 22
 
 ## Description
 
@@ -27,3 +29,8 @@ TensorProto message.
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain output types to float tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

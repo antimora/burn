@@ -1,6 +1,8 @@
 # LeakyRelu
 
-Since opset **16**
+First introduced in opset **1**
+
+All versions: 1, 6, 16
 
 ## Description
 
@@ -24,3 +26,9 @@ output data (Tensor<T>) where the function `f(x) = alpha * x for x < 0`,
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input and output types to float tensors.
+
+## Version History
+
+- **Opset 16**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 6**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

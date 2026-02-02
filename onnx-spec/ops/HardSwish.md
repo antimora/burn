@@ -1,6 +1,8 @@
 # HardSwish
 
-Since opset **22**
+First introduced in opset **14**
+
+All versions: 14, 22
 
 ## Description
 
@@ -20,3 +22,8 @@ where alpha = 1/6 and beta = 0.5, is applied to the tensor elementwise.
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input and output types to float tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 14**: Types: tensor(double), tensor(float), tensor(float16)

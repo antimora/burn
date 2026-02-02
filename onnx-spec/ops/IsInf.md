@@ -1,6 +1,8 @@
 # IsInf
 
-Since opset **20**
+First introduced in opset **10**
+
+All versions: 10, 20
 
 ## Description
 
@@ -25,3 +27,8 @@ Map infinity to true and other values to false.
   Constrain input types to float tensors.
 - **T2**: tensor(bool)
   Constrain output types to boolean tensors.
+
+## Version History
+
+- **Opset 20**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(float8e4m3fn), tensor(float8e4m3fnuz), tensor(float8e5m2), tensor(float8e5m2fnuz)
+- **Opset 10**: Types: tensor(double), tensor(float)

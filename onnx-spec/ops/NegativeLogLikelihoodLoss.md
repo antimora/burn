@@ -1,6 +1,8 @@
 # NegativeLogLikelihoodLoss
 
-Since opset **22**
+First introduced in opset **12**
+
+All versions: 12, 13, 22
 
 ## Description
 
@@ -127,3 +129,9 @@ loss = np.sum(loss) / weight_total
   Constrain input, weight, and output types to floating-point tensors.
 - **Tind**: tensor(int32), tensor(int64)
   Constrain target to integer types
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 13**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 12**: Types: tensor(double), tensor(float), tensor(float16)

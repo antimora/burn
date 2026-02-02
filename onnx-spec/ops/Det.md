@@ -1,6 +1,8 @@
 # Det
 
-Since opset **22**
+First introduced in opset **11**
+
+All versions: 11, 22
 
 ## Description
 
@@ -22,3 +24,8 @@ e.g., When the input is 2-D, the output is a scalar(shape is empty: `[]`).
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input and output types to floating-point tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 11**: Types: tensor(double), tensor(float), tensor(float16)

@@ -8,6 +8,9 @@
 
 """Fetch ONNX operator specs and write per-operator markdown files to ops/.
 
+Each file contains the latest spec plus a version history showing all opset
+versions with their changes.
+
 Usage: ./onnx-spec/fetch-specs.py
 """
 
@@ -47,17 +50,21 @@ FORMAL_PARAM_OPTION = {
 }
 
 
-def get_latest_schemas():
-    """Get the latest version of each operator schema."""
+def get_all_schemas_by_name():
+    """Get all versions of each operator schema, grouped by name."""
     all_schemas = defs.get_all_schemas_with_history()
-    latest = {}
+    by_name = {}
     for schema in all_schemas:
         if schema.domain != DOMAIN:
             continue
         name = schema.name
-        if name not in latest or schema.since_version > latest[name].since_version:
-            latest[name] = schema
-    return latest
+        if name not in by_name:
+            by_name[name] = []
+        by_name[name].append(schema)
+    # Sort each operator's versions by opset
+    for name in by_name:
+        by_name[name].sort(key=lambda s: s.since_version)
+    return by_name
 
 
 def format_attribute(attr):
@@ -101,22 +108,29 @@ def format_type_constraints(schema):
     return lines
 
 
-def schema_to_markdown(schema):
-    """Convert an ONNX schema to a markdown string."""
+def schema_to_markdown(latest, all_versions):
+    """Convert an ONNX schema to a markdown string with version history."""
     lines = []
-    lines.append(f"# {schema.name}")
-    lines.append("")
-    lines.append(f"Since opset **{schema.since_version}**")
+    lines.append(f"# {latest.name}")
     lines.append("")
 
-    if schema.doc:
+    # Version history summary
+    first = all_versions[0]
+    lines.append(f"First introduced in opset **{first.since_version}**")
+    if len(all_versions) > 1:
+        versions = ", ".join(str(s.since_version) for s in all_versions)
+        lines.append(f"")
+        lines.append(f"All versions: {versions}")
+    lines.append("")
+
+    if latest.doc:
         lines.append("## Description")
         lines.append("")
-        lines.append(schema.doc.strip())
+        lines.append(latest.doc.strip())
         lines.append("")
 
     # Attributes
-    attrs = list(schema.attributes.values())
+    attrs = list(latest.attributes.values())
     if attrs:
         lines.append("## Attributes")
         lines.append("")
@@ -125,31 +139,49 @@ def schema_to_markdown(schema):
         lines.append("")
 
     # Inputs
-    if schema.inputs:
-        min_inputs = schema.min_input
-        max_inputs = schema.max_input
+    if latest.inputs:
+        min_inputs = latest.min_input
+        max_inputs = latest.max_input
         lines.append(f"## Inputs ({min_inputs} - {max_inputs})")
         lines.append("")
-        for inp in schema.inputs:
+        for inp in latest.inputs:
             lines.append(format_io(inp, "input"))
         lines.append("")
 
     # Outputs
-    if schema.outputs:
-        min_outputs = schema.min_output
-        max_outputs = schema.max_output
+    if latest.outputs:
+        min_outputs = latest.min_output
+        max_outputs = latest.max_output
         lines.append(f"## Outputs ({min_outputs} - {max_outputs})")
         lines.append("")
-        for out in schema.outputs:
+        for out in latest.outputs:
             lines.append(format_io(out, "output"))
         lines.append("")
 
     # Type constraints
-    tc_lines = format_type_constraints(schema)
+    tc_lines = format_type_constraints(latest)
     if tc_lines:
         lines.append("## Type Constraints")
         lines.append("")
         lines.extend(tc_lines)
+        lines.append("")
+
+    # Version history details
+    if len(all_versions) > 1:
+        lines.append("## Version History")
+        lines.append("")
+        for schema in reversed(all_versions):
+            tc = format_type_constraints(schema)
+            type_summary = ""
+            if tc:
+                # Extract just the type list from the first constraint
+                for constraint in schema.type_constraints:
+                    types = ", ".join(sorted(constraint.allowed_type_strs))
+                    type_summary = f" Types: {types}"
+                    break
+            lines.append(
+                f"- **Opset {schema.since_version}**:{type_summary}"
+            )
         lines.append("")
 
     return "\n".join(lines)
@@ -164,12 +196,13 @@ def main():
     for f in ops_dir.glob("*.md"):
         f.unlink()
 
-    schemas = get_latest_schemas()
-    print(f"Writing {len(schemas)} operator specs to {ops_dir}/")
+    schemas_by_name = get_all_schemas_by_name()
+    print(f"Writing {len(schemas_by_name)} operator specs to {ops_dir}/")
 
-    for name in sorted(schemas):
-        schema = schemas[name]
-        md = schema_to_markdown(schema)
+    for name in sorted(schemas_by_name):
+        versions = schemas_by_name[name]
+        latest = versions[-1]
+        md = schema_to_markdown(latest, versions)
         filepath = ops_dir / f"{name}.md"
         filepath.write_text(md)
 

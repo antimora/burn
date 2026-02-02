@@ -1,6 +1,8 @@
 # Mish
 
-Since opset **22**
+First introduced in opset **18**
+
+All versions: 18, 22
 
 ## Description
 
@@ -24,3 +26,8 @@ mish(x) = x * tanh(softplus(x)) = x * tanh(ln(1 + e^{x}))
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input X and output types to float tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 18**: Types: tensor(double), tensor(float), tensor(float16)

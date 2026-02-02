@@ -1,6 +1,8 @@
 # ReduceMax
 
-Since opset **20**
+First introduced in opset **1**
+
+All versions: 1, 11, 12, 13, 18, 20
 
 ## Description
 
@@ -33,3 +35,12 @@ to `False` instead of `True`.
 
 - **T**: tensor(bfloat16), tensor(bool), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(int8), tensor(uint32), tensor(uint64), tensor(uint8)
   Constrain input and output types to numeric and Boolean tensors.
+
+## Version History
+
+- **Opset 20**: Types: tensor(bfloat16), tensor(bool), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(int8), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 18**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(int8), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 13**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(int8), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 12**: Types: tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(int8), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 11**: Types: tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)

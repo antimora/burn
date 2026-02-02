@@ -1,6 +1,8 @@
 # And
 
-Since opset **7**
+First introduced in opset **1**
+
+All versions: 1, 7
 
 ## Description
 
@@ -24,3 +26,8 @@ This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; fo
   Constrain input to boolean tensor.
 - **T1**: tensor(bool)
   Constrain output to boolean tensor.
+
+## Version History
+
+- **Opset 7**: Types: tensor(bool)
+- **Opset 1**: Types: tensor(bool)

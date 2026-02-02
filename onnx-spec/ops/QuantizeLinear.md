@@ -1,6 +1,8 @@
 # QuantizeLinear
 
-Since opset **24**
+First introduced in opset **10**
+
+All versions: 10, 13, 19, 21, 23, 24
 
 ## Description
 
@@ -58,3 +60,12 @@ In all cases, `y_zero_point` must have the same shape as `y_scale`.
   The type of the input 'y_scale'.
 - **T3**: tensor(float4e2m1), tensor(float8e4m3fn), tensor(float8e4m3fnuz), tensor(float8e5m2), tensor(float8e5m2fnuz), tensor(int16), tensor(int4), tensor(int8), tensor(uint16), tensor(uint4), tensor(uint8)
   The type of the input `y_zero_point` and the output `y`.
+
+## Version History
+
+- **Opset 24**: Types: tensor(bfloat16), tensor(float), tensor(float16), tensor(int32)
+- **Opset 23**: Types: tensor(bfloat16), tensor(float), tensor(float16), tensor(int32)
+- **Opset 21**: Types: tensor(bfloat16), tensor(float), tensor(float16), tensor(int32)
+- **Opset 19**: Types: tensor(bfloat16), tensor(float), tensor(float16), tensor(int32)
+- **Opset 13**: Types: tensor(float), tensor(int32)
+- **Opset 10**: Types: tensor(float), tensor(int32)

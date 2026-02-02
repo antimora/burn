@@ -1,6 +1,6 @@
 # Einsum
 
-Since opset **12**
+First introduced in opset **12**
 
 ## Description
 

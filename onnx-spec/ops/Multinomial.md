@@ -1,6 +1,8 @@
 # Multinomial
 
-Since opset **22**
+First introduced in opset **7**
+
+All versions: 7, 22
 
 ## Description
 
@@ -27,3 +29,8 @@ of each of the possible outcomes.
   Constrain input types to float tensors.
 - **T2**: tensor(int32), tensor(int64)
   Constrain output types to integral tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 7**: Types: tensor(double), tensor(float), tensor(float16)

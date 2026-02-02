@@ -1,6 +1,8 @@
 # BatchNormalization
 
-Since opset **15**
+First introduced in opset **1**
+
+All versions: 1, 6, 7, 9, 14, 15
 
 ## Description
 
@@ -72,3 +74,12 @@ This operator has **optional** inputs/outputs. See [the doc](IR.md) for more det
   Constrain scale and bias types to float tensors.
 - **T2**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain mean and variance types to float tensors.
+
+## Version History
+
+- **Opset 15**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 14**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 9**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 7**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 6**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

@@ -1,6 +1,8 @@
 # DFT
 
-Since opset **20**
+First introduced in opset **17**
+
+All versions: 17, 20
 
 ## Description
 
@@ -43,3 +45,8 @@ Reference: https://docs.scipy.org/doc/scipy/tutorial/fft.html
   Constrain input and output types to float tensors.
 - **T2**: tensor(int32), tensor(int64)
   Constrain scalar length types to integers.
+
+## Version History
+
+- **Opset 20**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 17**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)

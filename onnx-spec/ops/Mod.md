@@ -1,6 +1,8 @@
 # Mod
 
-Since opset **13**
+First introduced in opset **10**
+
+All versions: 10, 13
 
 ## Description
 
@@ -39,3 +41,8 @@ This operator supports **multidirectional (i.e., NumPy-style) broadcasting**; fo
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
   Constrain input and output types to high-precision numeric tensors.
+
+## Version History
+
+- **Opset 13**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 10**: Types: tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)

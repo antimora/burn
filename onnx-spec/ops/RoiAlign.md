@@ -1,6 +1,8 @@
 # RoiAlign
 
-Since opset **22**
+First introduced in opset **10**
+
+All versions: 10, 16, 22
 
 ## Description
 
@@ -41,3 +43,9 @@ through bilinear interpolation.
   Constrain types to float tensors.
 - **T2**: tensor(int64)
   Constrain types to int tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 16**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 10**: Types: tensor(double), tensor(float), tensor(float16)

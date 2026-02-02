@@ -1,6 +1,6 @@
 # StringSplit
 
-Since opset **20**
+First introduced in opset **20**
 
 ## Description
 

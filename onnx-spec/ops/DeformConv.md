@@ -1,6 +1,8 @@
 # DeformConv
 
-Since opset **22**
+First introduced in opset **19**
+
+All versions: 19, 22
 
 ## Description
 
@@ -32,3 +34,8 @@ This operator specification supports the general N-D case. Note that most common
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input and output types to float tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 19**: Types: tensor(double), tensor(float), tensor(float16)

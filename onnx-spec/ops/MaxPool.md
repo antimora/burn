@@ -1,6 +1,8 @@
 # MaxPool
 
-Since opset **22**
+First introduced in opset **1**
+
+All versions: 1, 8, 10, 11, 12, 22
 
 ## Description
 
@@ -61,3 +63,12 @@ MaxPool consumes an input tensor X and applies max pooling across
   Constrain input and output types to float and 8 bit tensors.
 - **I**: tensor(int64)
   Constrain index tensor to int64
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int8), tensor(uint8)
+- **Opset 12**: Types: tensor(double), tensor(float), tensor(float16), tensor(int8), tensor(uint8)
+- **Opset 11**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 10**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 8**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

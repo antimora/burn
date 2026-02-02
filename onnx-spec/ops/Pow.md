@@ -1,6 +1,8 @@
 # Pow
 
-Since opset **15**
+First introduced in opset **1**
+
+All versions: 1, 7, 12, 13, 15
 
 ## Description
 
@@ -24,3 +26,11 @@ This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; fo
   Constrain input X and output types to float/int tensors.
 - **T1**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
   Constrain input Y types to float/int tensors.
+
+## Version History
+
+- **Opset 15**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64)
+- **Opset 13**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64)
+- **Opset 12**: Types: tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64)
+- **Opset 7**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

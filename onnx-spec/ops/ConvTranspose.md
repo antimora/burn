@@ -1,6 +1,8 @@
 # ConvTranspose
 
-Since opset **22**
+First introduced in opset **1**
+
+All versions: 1, 11, 22
 
 ## Description
 
@@ -42,3 +44,9 @@ output_shape can also be explicitly specified in which case pads values are auto
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input and output types to float tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 11**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

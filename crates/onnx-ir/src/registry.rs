@@ -166,29 +166,20 @@ impl ProcessorRegistry {
         registry.register(NodeType::Sinh, Box::new(crate::node::sinh::SinhProcessor));
         registry.register(NodeType::Cosh, Box::new(crate::node::cosh::CoshProcessor));
         registry.register(NodeType::Tanh, Box::new(crate::node::tanh::TanhProcessor));
-        registry.register(
-            NodeType::Asin,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Acos,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
-        registry.register(
-            NodeType::Atan,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
-        );
+        registry.register(NodeType::Asin, Box::new(crate::node::asin::AsinProcessor));
+        registry.register(NodeType::Acos, Box::new(crate::node::acos::AcosProcessor));
+        registry.register(NodeType::Atan, Box::new(crate::node::atan::AtanProcessor));
         registry.register(
             NodeType::Asinh,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::asinh::AsinhProcessor),
         );
         registry.register(
             NodeType::Acosh,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::acosh::AcoshProcessor),
         );
         registry.register(
             NodeType::Atanh,
-            Box::new(crate::node::elementwise::ElementwiseUnaryProcessor),
+            Box::new(crate::node::atanh::AtanhProcessor),
         );
 
         // Special functions

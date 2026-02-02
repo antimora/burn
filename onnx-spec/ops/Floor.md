@@ -1,6 +1,8 @@
 # Floor
 
-Since opset **13**
+First introduced in opset **1**
+
+All versions: 1, 6, 13
 
 ## Description
 
@@ -20,3 +22,9 @@ the tensor elementwise. If x is integral, +0, -0, NaN,  or infinite, x itself is
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input and output types to float tensors.
+
+## Version History
+
+- **Opset 13**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 6**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

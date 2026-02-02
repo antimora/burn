@@ -1,6 +1,8 @@
 # LpPool
 
-Since opset **22**
+First introduced in opset **1**
+
+All versions: 1, 2, 11, 18, 22
 
 ## Description
 
@@ -50,3 +52,11 @@ LpPool consumes an input tensor X and applies Lp pooling across
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input and output types to float tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 18**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 11**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 2**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

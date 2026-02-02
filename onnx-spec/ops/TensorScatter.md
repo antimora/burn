@@ -1,6 +1,6 @@
 # TensorScatter
 
-Since opset **24**
+First introduced in opset **24**
 
 ## Description
 

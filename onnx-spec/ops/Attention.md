@@ -1,6 +1,8 @@
 # Attention
 
-Since opset **24**
+First introduced in opset **23**
+
+All versions: 23, 24
 
 ## Description
 
@@ -94,3 +96,8 @@ Q*sqrt(scale) K*sqrt(scale) |
   Constrain V input types to float tensors.
 - **U**: tensor(bfloat16), tensor(bool), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
   Constrain output 'mask' types to boolean tensors and input types.
+
+## Version History
+
+- **Opset 24**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 23**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)

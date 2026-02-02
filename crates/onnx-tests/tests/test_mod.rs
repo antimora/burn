@@ -12,10 +12,16 @@ mod backend;
 
 // Import individual node modules
 pub mod abs;
+pub mod acos;
+pub mod acosh;
 pub mod add;
 pub mod and;
 pub mod argmax;
 pub mod argmin;
+pub mod asin;
+pub mod asinh;
+pub mod atan;
+pub mod atanh;
 pub mod attention;
 pub mod avg_pool;
 pub mod batch_norm;

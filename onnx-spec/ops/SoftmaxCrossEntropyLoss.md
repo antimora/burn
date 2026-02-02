@@ -1,6 +1,8 @@
 # SoftmaxCrossEntropyLoss
 
-Since opset **13**
+First introduced in opset **12**
+
+All versions: 12, 13
 
 ## Description
 
@@ -67,3 +69,8 @@ Finally, L is optionally reduced:
   Constrain input and output types to float tensors.
 - **Tind**: tensor(int32), tensor(int64)
   Constrain target to integer types
+
+## Version History
+
+- **Opset 13**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 12**: Types: tensor(double), tensor(float), tensor(float16)

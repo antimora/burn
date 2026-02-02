@@ -1,6 +1,8 @@
 # OneHot
 
-Since opset **11**
+First introduced in opset **9**
+
+All versions: 9, 11
 
 ## Description
 
@@ -45,3 +47,8 @@ Produces a one-hot tensor based on inputs.
   Constrain input to only numeric types.
 - **T3**: tensor(bool), tensor(complex128), tensor(complex64), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(string), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
   Constrain to any tensor type.
+
+## Version History
+
+- **Opset 11**: Types: tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 9**: Types: tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)

@@ -1,6 +1,6 @@
 # MelWeightMatrix
 
-Since opset **17**
+First introduced in opset **17**
 
 ## Description
 

@@ -1,6 +1,8 @@
 # Bernoulli
 
-Since opset **22**
+First introduced in opset **15**
+
+All versions: 15, 22
 
 ## Description
 
@@ -30,3 +32,8 @@ implementations (even if a seed is specified).
   Constrain input types to float tensors.
 - **T2**: tensor(bfloat16), tensor(bool), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
   Constrain output types to all numeric tensors and bool tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 15**: Types: tensor(double), tensor(float), tensor(float16)

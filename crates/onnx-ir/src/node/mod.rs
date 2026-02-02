@@ -15,6 +15,12 @@ pub mod elementwise;
 
 // Unary element-wise operations
 pub mod abs;
+pub mod acos;
+pub mod acosh;
+pub mod asin;
+pub mod asinh;
+pub mod atan;
+pub mod atanh;
 pub mod bitwisenot;
 pub mod ceil;
 pub mod cos;

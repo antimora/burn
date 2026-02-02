@@ -1,6 +1,8 @@
 # ConstantOfShape
 
-Since opset **24**
+First introduced in opset **9**
+
+All versions: 9, 20, 21, 23, 24
 
 ## Description
 
@@ -24,3 +26,11 @@ Generate a tensor with given value and shape.
   Constrain input types.
 - **T2**: tensor(bfloat16), tensor(bool), tensor(double), tensor(float), tensor(float16), tensor(float4e2m1), tensor(float8e4m3fn), tensor(float8e4m3fnuz), tensor(float8e5m2), tensor(float8e5m2fnuz), tensor(float8e8m0), tensor(int16), tensor(int32), tensor(int4), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint4), tensor(uint64), tensor(uint8)
   Constrain output types to be numerics or boolean.
+
+## Version History
+
+- **Opset 24**: Types: tensor(int64)
+- **Opset 23**: Types: tensor(int64)
+- **Opset 21**: Types: tensor(int64)
+- **Opset 20**: Types: tensor(int64)
+- **Opset 9**: Types: tensor(int64)

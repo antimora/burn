@@ -1,6 +1,8 @@
 # LSTM
 
-Since opset **22**
+First introduced in opset **1**
+
+All versions: 1, 7, 14, 22
 
 ## Description
 
@@ -89,3 +91,10 @@ This operator has **optional** inputs/outputs. See [the doc](IR.md) for more det
   Constrain input and output types to float tensors.
 - **T1**: tensor(int32)
   Constrain seq_lens to integer tensor.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 14**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 7**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

@@ -1,6 +1,8 @@
 # Less
 
-Since opset **13**
+First introduced in opset **1**
+
+All versions: 1, 7, 9, 13
 
 ## Description
 
@@ -24,3 +26,10 @@ This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; fo
   Constrain input types to all numeric tensors.
 - **T1**: tensor(bool)
   Constrain output to boolean tensor.
+
+## Version History
+
+- **Opset 13**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 9**: Types: tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 7**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

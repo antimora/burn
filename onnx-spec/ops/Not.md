@@ -1,6 +1,6 @@
 # Not
 
-Since opset **1**
+First introduced in opset **1**
 
 ## Description
 

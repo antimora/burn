@@ -1,6 +1,8 @@
 # ReduceMean
 
-Since opset **18**
+First introduced in opset **1**
+
+All versions: 1, 11, 13, 18
 
 ## Description
 
@@ -31,3 +33,10 @@ to `False` instead of `True`.
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
   Constrain input and output types to numeric tensors.
+
+## Version History
+
+- **Opset 18**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+- **Opset 13**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+- **Opset 11**: Types: tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)

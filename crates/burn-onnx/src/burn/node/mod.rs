@@ -12,9 +12,15 @@ mod subgraph_helper;
 pub(crate) mod test_helpers;
 
 pub(crate) mod abs;
+pub(crate) mod acos;
+pub(crate) mod acosh;
 pub(crate) mod add;
 pub(crate) mod argmax;
 pub(crate) mod argmin;
+pub(crate) mod asin;
+pub(crate) mod asinh;
+pub(crate) mod atan;
+pub(crate) mod atanh;
 pub(crate) mod attention;
 pub(crate) mod avg_pool1d;
 pub(crate) mod avg_pool2d;

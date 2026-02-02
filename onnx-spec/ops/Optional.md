@@ -1,6 +1,6 @@
 # Optional
 
-Since opset **15**
+First introduced in opset **15**
 
 ## Description
 

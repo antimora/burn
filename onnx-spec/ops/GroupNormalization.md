@@ -1,6 +1,8 @@
 # GroupNormalization
 
-Since opset **21**
+First introduced in opset **18**
+
+All versions: 18, 21
 
 ## Description
 
@@ -48,3 +50,8 @@ is equivalent to LayerNormalization.
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input and output types to float tensors.
+
+## Version History
+
+- **Opset 21**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 18**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)

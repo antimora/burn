@@ -1,6 +1,6 @@
 # Col2Im
 
-Since opset **18**
+First introduced in opset **18**
 
 ## Description
 

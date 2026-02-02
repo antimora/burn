@@ -1,6 +1,8 @@
 # EyeLike
 
-Since opset **22**
+First introduced in opset **9**
+
+All versions: 9, 22
 
 ## Description
 
@@ -31,3 +33,8 @@ TensorProto message and be valid as an output type.
   Constrain input types. Strings and complex are not supported.
 - **T2**: tensor(bfloat16), tensor(bool), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
   Constrain output types. Strings and complex are not supported.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(bool), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 9**: Types: tensor(bool), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)

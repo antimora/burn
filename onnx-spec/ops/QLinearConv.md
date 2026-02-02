@@ -1,6 +1,6 @@
 # QLinearConv
 
-Since opset **10**
+First introduced in opset **10**
 
 ## Description
 

@@ -1,6 +1,8 @@
 # PRelu
 
-Since opset **16**
+First introduced in opset **1**
+
+All versions: 1, 6, 7, 9, 16
 
 ## Description
 
@@ -22,3 +24,11 @@ This operator supports **unidirectional broadcasting** (tensor slope should be u
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
   Constrain input and output types to float/int tensors.
+
+## Version History
+
+- **Opset 16**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+- **Opset 9**: Types: tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+- **Opset 7**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 6**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

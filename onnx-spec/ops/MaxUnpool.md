@@ -1,6 +1,8 @@
 # MaxUnpool
 
-Since opset **22**
+First introduced in opset **9**
+
+All versions: 9, 11, 22
 
 ## Description
 
@@ -45,3 +47,9 @@ In addition to the inputs, MaxUnpool takes three attributes, namely kernel_shape
   Constrain input and output types to float tensors.
 - **T2**: tensor(int64)
   Constrain index tensor to int64
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 11**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 9**: Types: tensor(double), tensor(float), tensor(float16)

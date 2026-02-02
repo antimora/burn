@@ -1,6 +1,8 @@
 # CumSum
 
-Since opset **14**
+First introduced in opset **11**
+
+All versions: 11, 14
 
 ## Description
 
@@ -44,3 +46,8 @@ output = [5, 3, 0]
   Constrain input and output types to high-precision numeric tensors.
 - **T2**: tensor(int32), tensor(int64)
   axis tensor can be int32 or int64 only
+
+## Version History
+
+- **Opset 14**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)
+- **Opset 11**: Types: tensor(double), tensor(float), tensor(int32), tensor(int64), tensor(uint32), tensor(uint64)

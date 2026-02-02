@@ -82,6 +82,12 @@ impl_node_codegen_dispatch! {
 
     // Unary ops
     Abs,
+    Acos,
+    Acosh,
+    Asin,
+    Asinh,
+    Atan,
+    Atanh,
     Ceil,
     Cos,
     Cosh,

@@ -1,6 +1,8 @@
 # NonMaxSuppression
 
-Since opset **11**
+First introduced in opset **10**
+
+All versions: 10, 11
 
 ## Description
 
@@ -27,3 +29,8 @@ The bounding box coordinates corresponding to the selected indices can then be o
 ## Outputs (1 - 1)
 
 - **selected_indices** (tensor(int64)): selected indices from the boxes tensor. [num_selected_indices, 3], the selected index format is [batch_index, class_index, box_index].
+
+## Version History
+
+- **Opset 11**:
+- **Opset 10**:

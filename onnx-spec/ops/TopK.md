@@ -1,6 +1,8 @@
 # TopK
 
-Since opset **24**
+First introduced in opset **1**
+
+All versions: 1, 10, 11, 24
 
 ## Description
 
@@ -42,3 +44,10 @@ a tiebreaker. That is, the element with the lower index will appear first.
   Constrain input and output types to numeric tensors.
 - **I**: tensor(int64)
   Constrain index tensor to int64
+
+## Version History
+
+- **Opset 24**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 11**: Types: tensor(double), tensor(float), tensor(float16), tensor(int16), tensor(int32), tensor(int64), tensor(int8), tensor(uint16), tensor(uint32), tensor(uint64), tensor(uint8)
+- **Opset 10**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

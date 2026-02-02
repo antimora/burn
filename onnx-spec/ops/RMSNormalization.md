@@ -1,6 +1,6 @@
 # RMSNormalization
 
-Since opset **23**
+First introduced in opset **23**
 
 ## Description
 

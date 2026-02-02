@@ -1,6 +1,8 @@
 # QLinearMatMul
 
-Since opset **21**
+First introduced in opset **10**
+
+All versions: 10, 21
 
 ## Description
 
@@ -41,3 +43,8 @@ Production must never overflow, and accumulation may overflow if and only if in 
   The type of input b and its zeropoint.
 - **T3**: tensor(float8e4m3fn), tensor(float8e4m3fnuz), tensor(float8e5m2), tensor(float8e5m2fnuz), tensor(int8), tensor(uint8)
   The type of the output and its zeropoint.
+
+## Version History
+
+- **Opset 21**: Types: tensor(bfloat16), tensor(float), tensor(float16)
+- **Opset 10**: Types: tensor(int8), tensor(uint8)

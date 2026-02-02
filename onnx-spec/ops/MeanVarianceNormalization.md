@@ -1,6 +1,8 @@
 # MeanVarianceNormalization
 
-Since opset **13**
+First introduced in opset **9**
+
+All versions: 9, 13
 
 ## Description
 
@@ -23,3 +25,8 @@ A MeanVarianceNormalization Function: Perform mean variance normalization
 
 - **T**: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
   Constrain input and output types to all numeric tensors.
+
+## Version History
+
+- **Opset 13**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 9**: Types: tensor(double), tensor(float), tensor(float16)

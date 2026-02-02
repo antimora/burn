@@ -1,6 +1,8 @@
 # Dropout
 
-Since opset **22**
+First introduced in opset **1**
+
+All versions: 1, 6, 7, 10, 12, 13, 22
 
 ## Description
 
@@ -40,3 +42,13 @@ This operator has **optional** inputs/outputs. See [the doc](IR.md) for more det
   Constrain input 'ratio' types to float tensors.
 - **T2**: tensor(bool)
   Constrain output 'mask' types to boolean tensors.
+
+## Version History
+
+- **Opset 22**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16), tensor(float8e4m3fn), tensor(float8e4m3fnuz), tensor(float8e5m2), tensor(float8e5m2fnuz)
+- **Opset 13**: Types: tensor(bfloat16), tensor(double), tensor(float), tensor(float16)
+- **Opset 12**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 10**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 7**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 6**: Types: tensor(double), tensor(float), tensor(float16)
+- **Opset 1**: Types: tensor(double), tensor(float), tensor(float16)

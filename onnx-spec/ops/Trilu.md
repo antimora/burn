@@ -1,6 +1,6 @@
 # Trilu
 
-Since opset **14**
+First introduced in opset **14**
 
 ## Description
 

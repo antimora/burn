@@ -1,6 +1,6 @@
 # Shrink
 
-Since opset **9**
+First introduced in opset **9**
 
 ## Description
 
