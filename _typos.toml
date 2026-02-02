@@ -14,3 +14,5 @@ extend-exclude = [
 [default.extend-words]
 # Don't correct "arange" which is intentional
 arange = "arange"
+# "nd" is used in ONNX operator names like ScatterND, scatter_nd
+nd = "nd"
