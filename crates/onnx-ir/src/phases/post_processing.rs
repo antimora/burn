@@ -1,6 +1,7 @@
 //! Phase 4: Post-processing
 //!
-//! Eliminates no-op nodes (Identity and processor-declared no-ops) by rewiring consumers.
+//! Eliminates no-op nodes by rewiring consumers. Identity nodes are always eliminated;
+//! other processor-declared no-ops are only eliminated when `simplify=true`.
 
 use std::{
     cell::RefCell,
@@ -10,7 +11,7 @@ use std::{
 
 use crate::{
     graph_state::GraphState,
-    ir::{Argument, RawNode},
+    ir::{Argument, NodeType, RawNode},
     processor::get_processor_registry,
     proto_conversion::DEFAULT_OPSET_VERSION,
 };
@@ -49,6 +50,7 @@ fn rewire_argument(
 fn plan_noop_elimination(
     nodes: &[RawNode],
     node_output_map: &HashMap<String, (usize, usize)>,
+    simplify: bool,
 ) -> NoopEliminationPlan {
     let mut rewire_map = HashMap::new();
     let mut nodes_to_remove = HashSet::new();
@@ -61,7 +63,23 @@ fn plan_noop_elimination(
         .enumerate()
         .filter_map(|(i, node)| {
             let processor = registry.get(&node.node_type);
-            processor.is_noop(node).then_some(i)
+            let is_noop = if simplify {
+                processor.is_noop(node)
+            } else {
+                node.node_type == NodeType::Identity
+            };
+            if is_noop {
+                log::debug!(
+                    "No-op elimination: {:?} '{}' (output '{}' -> input '{}')",
+                    node.node_type,
+                    node.name,
+                    node.outputs.first().map(|o| o.name.as_str()).unwrap_or("?"),
+                    node.inputs.first().map(|i| i.name.as_str()).unwrap_or("?"),
+                );
+                Some(i)
+            } else {
+                None
+            }
         })
         .collect();
 
@@ -120,8 +138,14 @@ fn apply_noop_elimination(
     } = plan;
 
     if nodes_to_remove.is_empty() {
+        log::debug!("No-op elimination: nothing to remove");
         return;
     }
+
+    log::info!(
+        "No-op elimination: removing {} node(s)",
+        nodes_to_remove.len()
+    );
 
     // Step 1: Build a map from output names to Arguments
     // This allows us to look up data_id and value_store when rewiring
@@ -179,6 +203,7 @@ fn apply_noop_elimination(
 /// Returns (nodes, inputs, outputs) tuple ready for finalization
 pub(crate) fn post_process(
     state_rc: &Rc<RefCell<GraphState>>,
+    simplify: bool,
 ) -> (Vec<RawNode>, Vec<Argument>, Vec<Argument>) {
     // Extract graph data while preserving tensor_store, constant_map, and node_output_map
     let (mut nodes, inputs, mut outputs, node_output_map) = {
@@ -199,7 +224,7 @@ pub(crate) fn post_process(
     // No-op elimination (includes Identity nodes and any processor-declared no-ops)
     log::debug!("Starting no-op elimination");
     {
-        let elimination_plan = plan_noop_elimination(&nodes, &node_output_map);
+        let elimination_plan = plan_noop_elimination(&nodes, &node_output_map, simplify);
         apply_noop_elimination(&mut nodes, &mut outputs, elimination_plan);
     }
 
@@ -332,7 +357,7 @@ mod tests {
         ];
 
         let node_output_map = HashMap::new();
-        let plan = plan_noop_elimination(&nodes, &node_output_map);
+        let plan = plan_noop_elimination(&nodes, &node_output_map, true);
 
         assert_eq!(plan.nodes_to_remove.len(), 1);
         assert!(plan.nodes_to_remove.contains(&0));
@@ -350,7 +375,7 @@ mod tests {
         ];
 
         let node_output_map = HashMap::new();
-        let plan = plan_noop_elimination(&nodes, &node_output_map);
+        let plan = plan_noop_elimination(&nodes, &node_output_map, true);
 
         // Should remove all Identity nodes (empty graph is allowed)
         assert_eq!(plan.nodes_to_remove.len(), 2);
@@ -377,7 +402,7 @@ mod tests {
         }];
 
         let node_output_map = HashMap::new();
-        let plan = plan_noop_elimination(&nodes, &node_output_map);
+        let plan = plan_noop_elimination(&nodes, &node_output_map, true);
         apply_noop_elimination(&mut nodes, &mut outputs, plan);
 
         // Identity should be removed

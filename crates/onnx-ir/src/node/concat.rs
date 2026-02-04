@@ -290,6 +290,11 @@ impl NodeProcessor for ConcatProcessor {
         Ok(())
     }
 
+    fn is_noop(&self, node: &RawNode) -> bool {
+        // Concat is a no-op when there is only a single input
+        node.inputs.len() == 1
+    }
+
     fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Extract the axis attribute (required per ONNX spec)
         let mut axis: Option<i64> = None;
@@ -573,5 +578,17 @@ mod tests {
             ArgType::Shape(rank) => assert_eq!(*rank, 2),
             _ => panic!("Expected Shape output, got {:?}", node.outputs[0].ty),
         }
+    }
+
+    #[test]
+    fn test_concat_single_input_is_noop() {
+        let node = create_test_node(0, 3, 1).build();
+        assert!(ConcatProcessor.is_noop(&node));
+    }
+
+    #[test]
+    fn test_concat_multiple_inputs_is_not_noop() {
+        let node = create_test_node(0, 3, 2).build();
+        assert!(!ConcatProcessor.is_noop(&node));
     }
 }

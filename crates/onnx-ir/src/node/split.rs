@@ -152,6 +152,11 @@ impl NodeProcessor for SplitProcessor {
         Ok(())
     }
 
+    fn is_noop(&self, node: &RawNode) -> bool {
+        // Split is a no-op when there is only a single output
+        node.outputs.len() == 1
+    }
+
     fn extract_config(&self, node: &RawNode, _opset: usize) -> Result<Self::Config, ProcessError> {
         // Initialize the axis to split along (default is 0 as per ONNX specification)
         let mut axis: i64 = 0;
@@ -777,6 +782,18 @@ mod tests {
             &config.split_sizes,
             Some(SplitSizesInput::Static(sizes)) if sizes == &vec![0, 1, 0]
         ));
+    }
+
+    #[test]
+    fn test_split_single_output_is_noop() {
+        let node = create_test_node(3, 1, Some(vec![2, 3, 4]), None, None).build();
+        assert!(SplitProcessor.is_noop(&node));
+    }
+
+    #[test]
+    fn test_split_multiple_outputs_is_not_noop() {
+        let node = create_test_node(3, 2, Some(vec![2, 3, 4]), None, None).build();
+        assert!(!SplitProcessor.is_noop(&node));
     }
 
     // TODO: Missing test for split_sizes that don't sum to dimension size.

@@ -372,6 +372,34 @@ through a 5-phase pipeline:
   same-type Cast, scalar Reshape, scalar Gather, etc.) and rewires the graph
 - Re-runs constant lifting after no-op elimination
 
+#### Phase 4b: Simplification (Optional)
+
+When `ModelGen::simplify(true)` is enabled, an additional simplification pass runs after
+post-processing. This pass folds shape-related computations into constants at codegen time:
+
+- **Shape folding**: `Shape(x)` with static dims becomes a constant array
+- **Gather on shape**: `Gather(Shape(x), const_idx)` becomes a scalar constant
+- **Slice on shape**: `Slice(Shape(x), start, end)` becomes a sub-array constant
+- **Concat of shapes**: `Concat(Shape(x), Shape(y))` becomes a concatenated constant
+- **Reshape from shape**: `Reshape(x, Shape(y))` uses a folded constant shape
+- **Binary ops on shapes**: `Add/Mul/Sub/Div(Shape(x), const)` becomes a constant
+- **Cast on shape**: `Cast(Shape(x))` becomes a constant
+- **Where on shapes**: `Where(cond, Shape(x), Shape(y))` becomes a conditional constant
+- **Expand from shape**: `Expand(x, Shape(y))` uses a folded constant shape
+- **ConstantOfShape optimization**: `ConstantOfShape(Shape(x))` uses a known shape
+
+Simplification is enabled by default. Existing operator tests explicitly use `.simplify(false)` when they need to test unsimplified codegen paths.
+Use `--no-simplify` to disable it:
+
+```sh
+cargo run -p burn-onnx -- model.onnx ./out             # simplification enabled (default)
+cargo run -p burn-onnx -- model.onnx ./out --no-simplify  # simplification disabled
+```
+
+Existing operator tests use `.simplify(false)` to test unsimplified codegen. Dedicated comparison
+tests in `crates/onnx-tests/tests/simplify/` verify that simplified and unsimplified codegen produce
+identical outputs.
+
 #### Phase 5: Finalization
 
 - Removes unreferenced constant nodes

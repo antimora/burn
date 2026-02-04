@@ -8,8 +8,8 @@ use test_utils::*;
 
 #[test]
 fn test_cast_same_type_eliminated() {
-    // Cast(F32 -> F32) is a no-op and should be eliminated
-    let graph = load_onnx("noop_cast_same_type.onnx");
+    // Cast(F32 -> F32) is a no-op and should be eliminated (requires simplify=true)
+    let graph = load_onnx_simplified("noop_cast_same_type.onnx");
 
     // Cast should be eliminated, only Relu remains
     assert!(

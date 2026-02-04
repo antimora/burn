@@ -115,6 +115,7 @@ pub mod scatter_nd;
 pub mod shape;
 pub mod sigmoid;
 pub mod sign;
+pub mod simplify;
 pub mod sin;
 pub mod sinh;
 pub mod slice;
@@ -148,5 +149,46 @@ macro_rules! include_models {
                 include!(concat!(env!("OUT_DIR"), concat!("/model/", stringify!($model), ".rs")));
             }
         )*
+    };
+}
+
+/// Include models from both `model_simplified/` and `model_unsimplified/` directories.
+///
+/// Also generates `simplified_source::<model>()` and `unsimplified_source::<model>()`
+/// functions returning the generated source code as `&'static str` for snapshot testing.
+#[macro_export]
+macro_rules! include_simplified_models {
+    ($($model:ident),*) => {
+        pub mod simplified {
+            $(
+                #[allow(clippy::type_complexity)]
+                pub mod $model {
+                    include!(concat!(env!("OUT_DIR"), "/model_simplified/", stringify!($model), ".rs"));
+                }
+            )*
+        }
+        pub mod unsimplified {
+            $(
+                #[allow(clippy::type_complexity)]
+                pub mod $model {
+                    include!(concat!(env!("OUT_DIR"), "/model_unsimplified/", stringify!($model), ".rs"));
+                }
+            )*
+        }
+
+        pub mod simplified_source {
+            $(
+                pub fn $model() -> &'static str {
+                    include_str!(concat!(env!("OUT_DIR"), "/model_simplified/", stringify!($model), ".rs"))
+                }
+            )*
+        }
+        pub mod unsimplified_source {
+            $(
+                pub fn $model() -> &'static str {
+                    include_str!(concat!(env!("OUT_DIR"), "/model_unsimplified/", stringify!($model), ".rs"))
+                }
+            )*
+        }
     };
 }
