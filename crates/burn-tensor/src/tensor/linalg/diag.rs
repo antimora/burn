@@ -2,7 +2,7 @@ use crate::backend::Backend;
 use crate::check;
 use crate::check::TensorCheck;
 use crate::tensor::{Int, Tensor};
-use crate::{BasicOps, DType, TensorKind};
+use crate::{BasicOps, TensorKind};
 
 /// Returns the diag of a matrix.
 ///
@@ -37,10 +37,8 @@ where
     flat_shape[D - 1] = 1;
     let flat: Tensor<B, D, K> = tensor.reshape(flat_shape);
 
-    // Pin indices to I64: `indices` below is fed into `take`, and the
-    // cross-backend convention for index tensors is I64. See #4776.
-    let range = Tensor::<B, 1, Int>::arange(0..diag_len as i64, (&device, DType::I64));
-    let step_tensor = Tensor::<B, 1, Int>::from_data([cols as i64 + 1], (&device, DType::I64));
+    let range = Tensor::<B, 1, Int>::arange(0..diag_len as i64, &device);
+    let step_tensor = Tensor::<B, 1, Int>::from_data([cols as i64 + 1], &device);
     let indices = range * step_tensor;
     flat.take::<1, D>(D - 2, indices).squeeze_dim(D - 1)
 }
