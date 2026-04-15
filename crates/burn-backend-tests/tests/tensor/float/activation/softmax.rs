@@ -70,6 +70,10 @@ fn test_softmax_non_contiguous_input() {
     // Softmax on a transposed (non-contiguous) input. The [3, 4] tensor is
     // transposed to [4, 3] before softmax over the last axis, exercising
     // stride-aware handling of the op in every backend.
+    //
+    // Every transposed row has the pattern [a, a+4, a+8] (columns of the
+    // original tensor); softmax is shift-invariant, so every row shares
+    // the same result.
     let t = TestTensor::<2>::from([
         [1.0, 2.0, 3.0, 4.0],
         [5.0, 6.0, 7.0, 8.0],
@@ -77,16 +81,13 @@ fn test_softmax_non_contiguous_input() {
     ]);
     let t_transposed = t.transpose();
 
-    let output = activation::softmax(t_transposed.clone(), 1);
+    let output = activation::softmax(t_transposed, 1);
 
-    // Reference: exp / sum along the (now-last) axis.
-    let exp = t_transposed.exp();
-    let sum = exp.clone().sum_dim(1);
-    let expected = exp / sum;
-
+    let row = [3.2932044e-4, 1.7980287e-2, 0.98169035];
+    let expected = TensorData::from([row, row, row, row]);
     output
         .into_data()
-        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::absolute(1e-5));
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-5));
 }
 
 #[test]
