@@ -1055,7 +1055,7 @@ impl FloatTensorOps<Flex> for Flex {
 // crates/burn-backend-tests/tests/tensor/float/ops/.
 #[cfg(test)]
 mod tests {
-    use burn_tensor::TensorData;
+    use burn_backend::TensorData;
 
     use crate::Flex;
 
