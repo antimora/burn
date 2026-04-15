@@ -1296,10 +1296,15 @@ fn calculate_padding_out(
         return 0;
     }
 
-    let out = 1
-        + ((size_in + 2 * padding - dilation * (kernel_size - 1) - 1) as f64 / stride as f64).ceil()
-            as usize;
-    i64::max(0, out as i64 - size_out as i64) as usize
+    // Invert the transpose conv output formula to recover the exact number of
+    // input elements that a forward conv would drop for this (size_in, size_out).
+    //
+    // Forward: size_out = floor((size_in + 2*padding - dilated_kernel) / stride) + 1
+    // Transpose: trans_out = (size_out - 1)*stride + dilated_kernel + padding_out - 2*padding
+    // Setting trans_out == size_in and solving for padding_out:
+    let dilated_kernel = dilation * (kernel_size - 1) + 1;
+    let base = (size_out as i64 - 1) * stride as i64 + dilated_kernel as i64 - 2 * padding as i64;
+    i64::max(0, size_in as i64 - base) as usize
 }
 
 #[cfg(test)]
