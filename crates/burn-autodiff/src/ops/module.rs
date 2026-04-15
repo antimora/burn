@@ -67,7 +67,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct LinearNoBias;
 
         impl<B: Backend> Backward<B, 3> for LinearWithBias {
-            type State = (NodeId, NodeId);
+            type State = (Option<NodeId>, Option<NodeId>);
 
             fn backward(
                 self,
@@ -79,16 +79,17 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 let grad = grads.consume::<B>(&ops.node);
 
                 let (x_state, weight_state) = ops.state;
-                let x = checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(x_state);
-                let weight =
-                    checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(weight_state);
+                let x = x_state
+                    .map(|id| checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(id));
+                let weight = weight_state
+                    .map(|id| checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(id));
 
                 if let Some(node) = node_x {
-                    let grad = B::linear_x_backward(weight.clone(), grad.clone());
+                    let grad = B::linear_x_backward(weight.unwrap(), grad.clone());
                     grads.register::<B>(node.id, grad)
                 }
                 if let Some(node) = node_weight {
-                    let grad = B::linear_weight_backward(x, grad.clone());
+                    let grad = B::linear_weight_backward(x.unwrap(), grad.clone());
                     grads.register::<B>(node.id, grad)
                 }
                 if let Some(node) = node_bias {
@@ -99,7 +100,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
 
         impl<B: Backend> Backward<B, 2> for LinearNoBias {
-            type State = (NodeId, NodeId);
+            type State = (Option<NodeId>, Option<NodeId>);
 
             fn backward(
                 self,
@@ -111,20 +112,24 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 let grad = grads.consume::<B>(&ops.node);
 
                 let (x_state, weight_state) = ops.state;
-                let x = checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(x_state);
-                let weight =
-                    checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(weight_state);
+                let x = x_state
+                    .map(|id| checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(id));
+                let weight = weight_state
+                    .map(|id| checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(id));
 
                 if let Some(node) = node_x {
-                    let grad = B::linear_x_backward(weight, grad.clone());
+                    let grad = B::linear_x_backward(weight.unwrap(), grad.clone());
                     grads.register::<B>(node.id, grad)
                 }
                 if let Some(node) = node_weight {
-                    let grad = B::linear_weight_backward(x, grad);
+                    let grad = B::linear_weight_backward(x.unwrap(), grad);
                     grads.register::<B>(node.id, grad)
                 }
             }
         }
+
+        let x_tracked = x.is_tracked();
+        let weight_tracked = weight.is_tracked();
 
         match bias {
             Some(bias) => match LinearWithBias
@@ -133,8 +138,9 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 .stateful()
             {
                 OpsKind::Tracked(mut prep) => {
-                    let x_state = prep.checkpoint(&x);
-                    let weight_state = prep.checkpoint(&weight);
+                    // x is only needed to compute the weight gradient, and vice versa.
+                    let x_state = weight_tracked.then(|| prep.checkpoint(&x));
+                    let weight_state = x_tracked.then(|| prep.checkpoint(&weight));
                     prep.finish(
                         (x_state, weight_state),
                         B::linear(x.primitive, weight.primitive, Some(bias.primitive)),
@@ -152,8 +158,8 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 .stateful()
             {
                 OpsKind::Tracked(mut prep) => {
-                    let x_state = prep.checkpoint(&x);
-                    let weight_state = prep.checkpoint(&weight);
+                    let x_state = weight_tracked.then(|| prep.checkpoint(&x));
+                    let weight_state = x_tracked.then(|| prep.checkpoint(&weight));
                     prep.finish(
                         (x_state, weight_state),
                         B::linear(x.primitive, weight.primitive, None),
@@ -164,6 +170,24 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 }
             },
         }
+    }
+
+    fn linear_x_backward(
+        _weight: AutodiffTensor<B>,
+        _output_grad: AutodiffTensor<B>,
+    ) -> AutodiffTensor<B> {
+        panic!("Can't differentiate linear_x_backward.");
+    }
+
+    fn linear_weight_backward(
+        _x: AutodiffTensor<B>,
+        _output_grad: AutodiffTensor<B>,
+    ) -> AutodiffTensor<B> {
+        panic!("Can't differentiate linear_weight_backward.");
+    }
+
+    fn linear_bias_backward(_output_grad: AutodiffTensor<B>) -> AutodiffTensor<B> {
+        panic!("Can't differentiate linear_bias_backward.");
     }
 
     fn conv1d(
