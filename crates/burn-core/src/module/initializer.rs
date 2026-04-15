@@ -112,6 +112,8 @@ impl Initializer {
         Param::uninitialized(
             ParamId::new(),
             move |device, require_grad| {
+                let config = config.clone();
+                let shape = shape.clone();
                 B::memory_persistent_allocations(device, (), move |_| {
                     let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
 
@@ -342,7 +344,7 @@ mod tests {
 
         let (mean, std) = (0.0, 1.0);
         let normal: Tensor<TB, 1> = Initializer::Normal { mean, std }
-            .init([1000], &Default::default())
+            .init([10000], &Default::default())
             .into_value();
         let (var_act, mean_act) = normal.var_mean(0);
 
