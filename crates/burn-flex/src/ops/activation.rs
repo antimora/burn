@@ -1040,93 +1040,19 @@ fn layer_norm_row_f32_simd<S: macerator::Simd>(
     }
 }
 
+// Tests kept here exercise flex-specific behavior: SIMD boundaries, rayon
+// chunk boundaries, non-contiguous input handling, the flex-internal
+// layer_norm op (no public API yet), and dtype-specific fused softmax
+// paths (f16/bf16/f64). Plain activation/softmax smoke tests have been
+// migrated to burn-backend-tests so they cover every backend. When adding
+// new tests, keep them here only if they probe flex internals; otherwise
+// add them to crates/burn-backend-tests/tests/tensor/float/activation/.
 #[cfg(test)]
 mod tests {
     use burn_backend::Tolerance;
     use burn_tensor::{Tensor, TensorData, activation};
 
     use crate::Flex;
-
-    #[test]
-    fn test_relu() {
-        let t: Tensor<Flex, 1> =
-            Tensor::from_data([-2.0f32, -1.0, 0.0, 1.0, 2.0], &Default::default());
-        activation::relu(t).into_data().assert_approx_eq::<f32>(
-            &TensorData::from([0.0, 0.0, 0.0, 1.0, 2.0]),
-            Tolerance::absolute(1e-6),
-        );
-    }
-
-    #[test]
-    fn test_sigmoid() {
-        let t: Tensor<Flex, 1> = Tensor::from_data([-10.0f32, 0.0, 10.0], &Default::default());
-        // sigmoid(-10) ~ 0, sigmoid(0) = 0.5, sigmoid(10) ~ 1
-        activation::sigmoid(t).into_data().assert_approx_eq::<f32>(
-            &TensorData::from([0.0, 0.5, 1.0]),
-            Tolerance::absolute(1e-3),
-        );
-    }
-
-    #[test]
-    fn test_gelu() {
-        let t: Tensor<Flex, 1> = Tensor::from_data([-3.0f32, 0.0, 3.0], &Default::default());
-        // gelu(0) = 0, gelu(-3) ~ -0.004, gelu(3) ~ 2.996
-        activation::gelu(t).into_data().assert_approx_eq::<f32>(
-            &TensorData::from([0.0, 0.0, 3.0]),
-            Tolerance::absolute(0.01),
-        );
-    }
-
-    #[test]
-    fn test_leaky_relu() {
-        let t: Tensor<Flex, 1> =
-            Tensor::from_data([-2.0f32, -1.0, 0.0, 1.0, 2.0], &Default::default());
-        activation::leaky_relu(t, 0.01)
-            .into_data()
-            .assert_approx_eq::<f32>(
-                &TensorData::from([-0.02, -0.01, 0.0, 1.0, 2.0]),
-                Tolerance::absolute(1e-6),
-            );
-    }
-
-    #[test]
-    fn test_softmax_1d() {
-        use burn_tensor::TensorPrimitive;
-        // softmax([1, 2, 3]) should equal the reference impl
-        let t: Tensor<Flex, 1> = Tensor::from_data([1.0f32, 2.0, 3.0], &Default::default());
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let result = crate::ops::activation::softmax(primitive, 0);
-        let result: Tensor<Flex, 1> = Tensor::from_primitive(TensorPrimitive::Float(result));
-        // e^1=2.7183, e^2=7.389, e^3=20.0855, sum=30.193
-        // normalized: 0.09003, 0.24473, 0.66524
-        result.into_data().assert_approx_eq::<f32>(
-            &TensorData::from([0.09003, 0.24473, 0.66524]),
-            Tolerance::absolute(1e-4),
-        );
-    }
-
-    #[test]
-    fn test_softmax_2d_last_axis() {
-        use burn_tensor::TensorPrimitive;
-        // Cross-check against burn_tensor::activation::softmax on the same input
-        let data = [[-1.0f32, 0.0, 1.0, 2.0], [0.5, 0.5, 0.5, 0.5]];
-        let t: Tensor<Flex, 2> = Tensor::from_data(data, &Default::default());
-        let reference = activation::softmax(t.clone(), 1);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::absolute(1e-5));
-    }
 
     #[test]
     fn test_layer_norm_2d_with_beta() {
@@ -1227,31 +1153,6 @@ mod tests {
             &TensorData::from([[-1.3416408, -0.4472136, 0.4472136, 1.3416408]]),
             Tolerance::absolute(1e-4),
         );
-    }
-
-    #[test]
-    fn test_softmax_3d_attention_shape() {
-        // wav2vec2-like attention scores [heads, seq_q, seq_k], softmax over seq_k.
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 3> = Tensor::from_data(
-            [
-                [[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]],
-                [[0.0, 0.0, 1.0], [1.0, 1.0, 1.0]],
-            ],
-            &Default::default(),
-        );
-        let reference = activation::softmax(t.clone(), 2);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 2);
-        let fused: Tensor<Flex, 3> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::absolute(1e-5));
     }
 
     #[test]
@@ -1584,30 +1485,6 @@ mod tests {
         let _ = crate::ops::activation::layer_norm(t_p, g_p, None, 1e-5);
     }
 
-    #[test]
-    fn test_softmax_non_last_axis_matches_decomposed() {
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 3> = Tensor::from_data(
-            [
-                [[1.0f32, -2.0, 0.5], [3.0, 0.0, -1.0]],
-                [[0.1, 2.5, -0.3], [1.2, -0.7, 2.1]],
-            ],
-            &Default::default(),
-        );
-        // Softmax on dim=1 (middle axis): fused path exercises the permute branch.
-        let reference = burn_tensor::activation::softmax(t.clone(), 1);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused_tensor: Tensor<Flex, 3> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-        fused_tensor
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), burn_tensor::Tolerance::default());
-    }
-
     // Row length 17 is deliberately chosen: it exercises the "SIMD body ran N
     // elements, then scalar tail processes M > 0" combination on every common
     // SIMD width (NEON/SSE f32x4: body=16, tail=1; AVX2 f32x8: body=16, tail=1;
@@ -1839,29 +1716,6 @@ mod tests {
     }
 
     #[test]
-    fn test_softmax_non_last_axis_rank4_dim0() {
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 4> = Tensor::from_data(
-            [
-                [[[1.0f32, -0.5], [0.3, 2.1]], [[-1.2, 0.0], [0.8, 1.5]]],
-                [[[0.4, -1.1], [2.0, 0.2]], [[-0.3, 0.9], [1.1, -0.7]]],
-            ],
-            &Default::default(),
-        );
-        let reference = burn_tensor::activation::softmax(t.clone(), 0);
-
-        let prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(prim, 0);
-        let fused_tensor: Tensor<Flex, 4> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-        fused_tensor
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::default());
-    }
-
-    #[test]
     #[should_panic(expected = "softmax dim")]
     fn test_softmax_dim_out_of_range_panics() {
         use burn_tensor::TensorPrimitive;
@@ -1897,15 +1751,4 @@ mod tests {
         let _ = crate::ops::activation::layer_norm(t_prim, g_prim, None, 1e-5);
     }
 
-    #[test]
-    fn test_log_sigmoid() {
-        let t: Tensor<Flex, 1> = Tensor::from_data([-10.0f32, 0.0, 10.0], &Default::default());
-        // log_sigmoid(-10) ~ -10, log_sigmoid(0) = ln(0.5) = -0.6931..., log_sigmoid(10) ~ 0
-        activation::log_sigmoid(t)
-            .into_data()
-            .assert_approx_eq::<f32>(
-                &TensorData::from([-10.0, -0.6931472, 0.0]),
-                Tolerance::absolute(1e-3),
-            );
-    }
 }
