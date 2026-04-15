@@ -1,6 +1,6 @@
 use burn_backend::{
     TensorMetadata,
-    ops::{ConvOptions, ConvTransposeOptions},
+    ops::{ConvOptions, ConvTransposeOptions, conv::calculate_padding_out},
 };
 use burn_std::Shape;
 use cubek::convolution::components::ConvSetupError;
@@ -87,29 +87,6 @@ pub(crate) fn conv_data_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
         _ => unimplemented!("Invalid dimensionality"),
     }?;
     Ok(permute_nchw_to_nhwc(in_grad))
-}
-
-fn calculate_padding_out(
-    kernel_size: usize,
-    stride: usize,
-    padding: usize,
-    dilation: usize,
-    size_in: usize,
-    size_out: usize,
-) -> usize {
-    if stride <= 1 {
-        return 0;
-    }
-
-    // Invert the transpose conv output formula to recover the exact number of
-    // input elements that a forward conv would drop for this (size_in, size_out).
-    //
-    // Forward: size_out = floor((size_in + 2*padding - dilated_kernel) / stride) + 1
-    // Transpose: trans_out = (size_out - 1)*stride + dilated_kernel + padding_out - 2*padding
-    // Setting trans_out == size_in and solving for padding_out:
-    let dilated_kernel = dilation * (kernel_size - 1) + 1;
-    let base = (size_out as i64 - 1) * stride as i64 + dilated_kernel as i64 - 2 * padding as i64;
-    i64::max(0, size_in as i64 - base) as usize
 }
 
 fn conv_transpose1d_from_conv_transpose2d<R: CubeRuntime>(

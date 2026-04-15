@@ -1284,7 +1284,11 @@ fn conv_transpose3d_weight_grad_groups<B: Backend>(
     weight_grad
 }
 
-fn calculate_padding_out(
+/// Compute the `padding_out` for a transpose conv that exactly recovers the
+/// original `size_in` from `size_out`, accounting for any input elements the
+/// forward conv dropped. Shared by `conv{1,2,3}d_x_backward` and the CubeCL
+/// dgrad fallback so the two paths can't drift.
+pub fn calculate_padding_out(
     kernel_size: usize,
     stride: usize,
     padding: usize,
