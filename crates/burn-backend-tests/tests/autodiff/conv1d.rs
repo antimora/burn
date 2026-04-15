@@ -244,12 +244,11 @@ fn test_conv1d_backward_shape_with_remainder() {
     assert_eq!(weight_grad.dims(), [1, 1, 4]);
 }
 
-/// End-to-end regression mirroring the scenario from
-/// https://github.com/tracel-ai/burn/issues/4799: two conv1ds with asymmetric
-/// padding separated by an op that materializes a new tensor. The asymmetric
-/// path goes `x.pad(...) -> B::conv1d(padding=0)`, so a miscomputed transpose
-/// padding in the backward fails shape checks when the second conv drops
-/// multiple tail inputs.
+/// Regression test for the asymmetric-padding backward-shape path referenced
+/// in https://github.com/tracel-ai/burn/issues/4799. Reduced to a single
+/// `conv1d`: the asymmetric path routes through `x.pad(...) -> B::conv1d(padding=0)`,
+/// and the backward must restore the original input shape without triggering
+/// shape-mismatch failures when the forward drops multiple tail inputs.
 #[test]
 fn test_conv1d_asymmetric_padding_backward_shape() {
     let device = AutodiffDevice::new();
