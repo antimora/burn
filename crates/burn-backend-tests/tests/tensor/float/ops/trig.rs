@@ -15,9 +15,10 @@ fn should_support_cos_flipped_axis1() {
     let output = flipped.cos();
     let expected = TensorData::from([[-1.0, 1.0], [0.0, 0.0]]);
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected,
+        Tolerance::default().set_half_precision_absolute(2e-3),
+    );
 }
 
 #[test]

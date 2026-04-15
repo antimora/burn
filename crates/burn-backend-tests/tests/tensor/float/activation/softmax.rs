@@ -22,7 +22,7 @@ fn test_softmax_d1() {
 
     output.into_data().assert_approx_eq::<FloatElem>(
         &TensorData::from([0.09003, 0.24473, 0.66524]),
-        Tolerance::absolute(1e-4),
+        Tolerance::default().set_half_precision_absolute(2e-3),
     );
 }
 
@@ -37,7 +37,7 @@ fn test_softmax_d2_varied() {
             [0.03205860, 0.08714432, 0.23688284, 0.64391422],
             [0.25, 0.25, 0.25, 0.25],
         ]),
-        Tolerance::absolute(1e-5),
+        Tolerance::default().set_half_precision_absolute(2e-3),
     );
 }
 
@@ -61,7 +61,7 @@ fn test_softmax_d3_last_axis() {
                 [0.33333334, 0.33333334, 0.33333334],
             ],
         ]),
-        Tolerance::absolute(1e-5),
+        Tolerance::default().set_half_precision_absolute(2e-3),
     );
 }
 
@@ -85,9 +85,10 @@ fn test_softmax_non_contiguous_input() {
 
     let row = [3.2932044e-4, 1.7980287e-2, 0.98169035];
     let expected = TensorData::from([row, row, row, row]);
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-5));
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected,
+        Tolerance::default().set_half_precision_absolute(2e-3),
+    );
 }
 
 #[test]

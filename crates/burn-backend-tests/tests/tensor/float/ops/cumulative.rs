@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::TensorData;
+use burn_tensor::{ElementConversion, TensorData};
 
 #[test]
 fn test_cumsum_float_dim_0() {
@@ -158,8 +158,8 @@ fn test_cummin_nan_propagation() {
 
     let output = tensor.cummin(0);
 
-    let data: Vec<f32> = output.into_data().to_vec().unwrap();
-    assert_eq!(data[0], 3.0);
+    let data: Vec<FloatElem> = output.into_data().to_vec().unwrap();
+    assert_eq!(data[0], 3.0.elem::<FloatElem>());
     assert!(data[1].is_nan());
     assert!(data[2].is_nan());
     assert!(data[3].is_nan());
@@ -171,8 +171,8 @@ fn test_cummax_nan_propagation() {
 
     let output = tensor.cummax(0);
 
-    let data: Vec<f32> = output.into_data().to_vec().unwrap();
-    assert_eq!(data[0], 1.0);
+    let data: Vec<FloatElem> = output.into_data().to_vec().unwrap();
+    assert_eq!(data[0], 1.0.elem::<FloatElem>());
     assert!(data[1].is_nan());
     assert!(data[2].is_nan());
     assert!(data[3].is_nan());
@@ -185,7 +185,7 @@ fn test_cummin_nan_at_start() {
 
     let output = tensor.cummin(0);
 
-    let data: Vec<f32> = output.into_data().to_vec().unwrap();
+    let data: Vec<FloatElem> = output.into_data().to_vec().unwrap();
     assert!(data[0].is_nan());
     assert!(data[1].is_nan());
     assert!(data[2].is_nan());
