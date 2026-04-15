@@ -267,3 +267,31 @@ fn test_max_abs_dim_2d_dim_1() {
 
     output.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn test_max_dim_nan_propagation() {
+    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
+    let data = tensor.max_dim(1).into_data();
+    let values = data.as_slice::<FloatElem>().unwrap();
+    assert!(values[0].is_nan());
+}
+
+#[test]
+fn test_min_dim_nan_propagation() {
+    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
+    let data = tensor.min_dim(1).into_data();
+    let values = data.as_slice::<FloatElem>().unwrap();
+    assert!(values[0].is_nan());
+}
+
+#[test]
+fn test_max_dim_with_indices_nan_propagation() {
+    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
+    let (values, indices) = tensor.max_dim_with_indices(1);
+    let vdata = values.into_data();
+    let slice = vdata.as_slice::<FloatElem>().unwrap();
+    assert!(slice[0].is_nan());
+    indices
+        .into_data()
+        .assert_eq(&TensorData::from([[1]]), false);
+}

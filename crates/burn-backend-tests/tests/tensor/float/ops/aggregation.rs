@@ -465,3 +465,102 @@ fn test_multiple_reduce_dims_permuted() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from([255.5, 767.5]), Tolerance::default());
 }
+
+#[test]
+fn test_sum_transposed() {
+    // Sum over a non-contiguous (transposed) tensor; result is order-independent.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.transpose().sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([21.0]), false);
+}
+
+#[test]
+fn test_sum_flipped() {
+    let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0, 5.0]);
+    let output = tensor.flip([0]).sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([15.0]), false);
+}
+
+#[test]
+fn test_sum_dim_flipped() {
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.flip([0]).sum_dim(0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[5.0, 7.0, 9.0]]), false);
+}
+
+#[test]
+fn test_sum_dim_flipped_axis1() {
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.flip([1]).sum_dim(1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[6.0], [15.0]]), false);
+}
+
+#[test]
+fn test_mean_dim_flipped() {
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.flip([0]).mean_dim(0);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([[2.5, 3.5, 4.5]]), Tolerance::default());
+}
+
+#[test]
+fn test_prod_flipped() {
+    let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]);
+    let output = tensor.flip([0]).prod();
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([24.0]), Tolerance::default());
+}
+
+#[test]
+fn test_sum_narrowed() {
+    // Narrow to indices 1..4 of [0, 1, 2, 3, 4] -> [1, 2, 3]
+    let tensor = TestTensor::<1>::from([0.0, 1.0, 2.0, 3.0, 4.0]);
+    let output = tensor.narrow(0, 1, 3).sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([6.0]), false);
+}
+
+#[test]
+fn test_sum_flipped_both_axes() {
+    let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
+    let output = tensor.flip([0, 1]).sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([10.0]), false);
+}
+
+#[test]
+fn test_sum_dim_4d_middle_dim() {
+    // Regression: 4D tensor reducing a middle dim (shape [1, 84, 80, 80]).
+    // Fill with 1.0 so every output position should sum to 84.0.
+    let shape = [1, 84, 80, 80];
+    let n: usize = shape.iter().product();
+    let data: Vec<f32> = vec![1.0; n];
+    let tensor = TestTensor::<4>::from_data(TensorData::new(data, shape), &Default::default());
+
+    let output = tensor.sum_dim(1);
+
+    let expected = TensorData::new(vec![84.0f32; 1 * 1 * 80 * 80], [1, 1, 80, 80]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
