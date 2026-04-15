@@ -66,6 +66,30 @@ fn test_softmax_d3_last_axis() {
 }
 
 #[test]
+fn test_softmax_non_contiguous_input() {
+    // Softmax on a transposed (non-contiguous) input. The [3, 4] tensor is
+    // transposed to [4, 3] before softmax over the last axis, exercising
+    // stride-aware handling of the op in every backend.
+    let t = TestTensor::<2>::from([
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0],
+        [9.0, 10.0, 11.0, 12.0],
+    ]);
+    let t_transposed = t.transpose();
+
+    let output = activation::softmax(t_transposed.clone(), 1);
+
+    // Reference: exp / sum along the (now-last) axis.
+    let exp = t_transposed.exp();
+    let sum = exp.clone().sum_dim(1);
+    let expected = exp / sum;
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), Tolerance::absolute(1e-5));
+}
+
+#[test]
 fn test_softmax_non_last_axis_d3() {
     let tensor = TestTensor::<3>::from([
         [[1.0, -2.0, 0.5], [3.0, 0.0, -1.0]],

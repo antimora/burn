@@ -527,14 +527,13 @@ fn bool_binary_op_simd(lhs: FlexTensor, rhs: FlexTensor, op: BoolBinaryOp) -> Fl
     crate::ops::comparison::make_bool_tensor(result, shape, out_dtype)
 }
 
-// Tests kept here exercise flex-specific behavior: negative-stride
-// (flipped) bool inputs routed through `Flex::bool_*` backend ops, and
-// flex dtype storage selection via explicit IntDType/FloatDType. Plain
-// bool-to-int/float cast smoke tests have been dropped in favor of the
-// equivalent coverage in burn-backend-tests, which exercises every
-// backend. When adding new tests, keep them here only if they probe
-// flex layout/storage internals; otherwise add them to
-// crates/burn-backend-tests/tests/tensor/bool/ops/.
+// Tests kept here exercise flex-specific dtype storage selection via
+// explicit IntDType/FloatDType. Plain bool ops, bool-to-int/float
+// casts, and negative-stride (flipped) bool coverage have been migrated
+// to crates/burn-backend-tests/tests/tensor/bool/ops/{logical,cast}.rs
+// so they run against every backend. When adding new tests, keep them
+// here only if they probe flex dtype dispatch; otherwise add them
+// there.
 #[cfg(test)]
 mod tests {
     use alloc::vec;
@@ -543,103 +542,6 @@ mod tests {
     use burn_std::{FloatDType, IntDType};
 
     use crate::{Flex, FlexTensor};
-
-    fn bool_tensor<const N: usize>(data: [bool; N]) -> FlexTensor {
-        FlexTensor::from_data(TensorData::new(data.to_vec(), [N]))
-    }
-
-    fn bool_tensor_2d<const R: usize, const C: usize>(data: [[bool; C]; R]) -> FlexTensor {
-        let flat: Vec<bool> = data.iter().flatten().copied().collect();
-        FlexTensor::from_data(TensorData::new(flat, [R, C]))
-    }
-
-    #[test]
-    fn test_bool_into_int_flipped() {
-        // [T, F, T, F] flipped -> [F, T, F, T]
-        let t = bool_tensor([true, false, true, false]);
-        let t = Flex::bool_flip(t, &[0]);
-        let int_t = Flex::bool_into_int(t, IntDType::I32);
-        let data: Vec<i32> = int_t.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![0, 1, 0, 1]);
-    }
-
-    #[test]
-    fn test_bool_into_float_flipped() {
-        let t = bool_tensor([true, false, true, false]);
-        let t = Flex::bool_flip(t, &[0]);
-        let float_t = Flex::bool_into_float(t, FloatDType::F32);
-        let data: Vec<f32> = float_t.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![0.0f32, 1.0, 0.0, 1.0]);
-    }
-
-    #[test]
-    fn test_bool_not_flipped() {
-        let t = bool_tensor([true, false, true, false]);
-        let t = Flex::bool_flip(t, &[0]);
-        let result = Flex::bool_not(t);
-        let data: Vec<bool> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![true, false, true, false]);
-    }
-
-    #[test]
-    fn test_bool_and_flipped() {
-        let a = bool_tensor([true, false, true, false]);
-        let b = bool_tensor([true, true, false, false]);
-        let a = Flex::bool_flip(a, &[0]);
-        let result = Flex::bool_and(a, b);
-        let data: Vec<bool> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![false, true, false, false]);
-    }
-
-    #[test]
-    fn test_bool_or_flipped() {
-        let a = bool_tensor([true, false, true, false]);
-        let b = bool_tensor([true, false, false, false]);
-        let a = Flex::bool_flip(a, &[0]);
-        let result = Flex::bool_or(a, b);
-        let data: Vec<bool> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![true, true, false, true]);
-    }
-
-    #[test]
-    fn test_bool_xor_flipped() {
-        let a = bool_tensor([true, false, true, false]);
-        let b = bool_tensor([true, true, false, false]);
-        let a = Flex::bool_flip(a, &[0]);
-        let result = Flex::bool_xor(a, b);
-        let data: Vec<bool> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![true, false, false, true]);
-    }
-
-    #[test]
-    fn test_bool_equal_flipped() {
-        let a = bool_tensor([true, false, true, false]);
-        let b = bool_tensor([false, true, false, true]);
-        let a = Flex::bool_flip(a, &[0]);
-        let result = Flex::bool_equal(a, b);
-        let data: Vec<bool> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![true, true, true, true]);
-    }
-
-    #[test]
-    fn test_bool_and_both_flipped() {
-        let a = bool_tensor([true, false, true, false]);
-        let b = bool_tensor([true, true, false, false]);
-        let a = Flex::bool_flip(a, &[0]);
-        let b = Flex::bool_flip(b, &[0]);
-        let result = Flex::bool_and(a, b);
-        let data: Vec<bool> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![false, false, false, true]);
-    }
-
-    #[test]
-    fn test_bool_into_int_flipped_2d() {
-        let t = bool_tensor_2d([[true, false], [false, true]]);
-        let t = Flex::bool_flip(t, &[0]);
-        let int_t = Flex::bool_into_int(t, IntDType::I32);
-        let data: Vec<i32> = int_t.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![0, 1, 1, 0]);
-    }
 
     #[test]
     fn test_bool_into_int_u8() {

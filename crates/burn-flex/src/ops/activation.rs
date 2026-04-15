@@ -1050,13 +1050,11 @@ fn layer_norm_row_f32_simd<S: macerator::Simd>(
 #[cfg(test)]
 mod tests {
     use alloc::vec;
-    use burn_backend::ops::FloatTensorOps;
-    use burn_backend::{DType, TensorMetadata, Tolerance};
+    use burn_backend::{DType, TensorData, TensorMetadata, Tolerance};
     use burn_std::{bf16, f16};
     use num_traits::Float;
 
-    use crate::{Flex, FlexTensor};
-    use burn_backend::TensorData;
+    use crate::FlexTensor;
 
     // ============================================================================
     // Reference implementations (per-row, last-axis).
@@ -1281,27 +1279,6 @@ mod tests {
         fused.into_data().assert_approx_eq::<f32>(
             &TensorData::new(expected, vec![128, 16]),
             Tolerance::absolute(1e-4),
-        );
-    }
-
-    #[test]
-    fn test_softmax_non_contiguous_input() {
-        // A transposed tensor has non-contiguous strides. softmax must
-        // materialize it via `to_contiguous()` before reading storage.
-        let src: Vec<f32> = (1..=12).map(|i| i as f32).collect();
-        let t = flex_f32(src, &[3, 4]);
-        let t_transposed = Flex::float_swap_dims(t, 0, 1);
-
-        // Reference: transposed layout is
-        //   col 0: [1, 5, 9], col 1: [2, 6, 10], col 2: [3, 7, 11], col 3: [4, 8, 12]
-        let transposed_rows: Vec<f32> =
-            vec![1.0, 5.0, 9.0, 2.0, 6.0, 10.0, 3.0, 7.0, 11.0, 4.0, 8.0, 12.0];
-        let expected = softmax_last_ref(&transposed_rows, 3);
-
-        let fused = crate::ops::activation::softmax(t_transposed, 1);
-        fused.into_data().assert_approx_eq::<f32>(
-            &TensorData::new(expected, vec![4, 3]),
-            Tolerance::absolute(1e-5),
         );
     }
 

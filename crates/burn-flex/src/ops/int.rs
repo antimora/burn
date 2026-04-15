@@ -1025,15 +1025,15 @@ impl IntTensorOps<Flex> for Flex {
     }
 }
 
-// Tests kept here exercise flex-specific behavior: negative-stride
-// (flipped) / transposed int inputs routed through `Flex::int_*` backend
-// ops, flex dtype storage selection for every int width (I16/I32/U8/U16/
-// U32/I64/U64), and edge cases of the dtype-specific kernels (u64 wrap,
-// i64::MIN abs/neg, bit shift at width). Plain int add/sub/mul/div/scalar
-// and bool->int cast smoke tests have been dropped in favor of the
-// equivalent coverage in burn-backend-tests. When adding new tests, keep
-// them here only if they probe flex dtype storage or layout internals;
-// otherwise add them to crates/burn-backend-tests/tests/tensor/int/ops/.
+// Tests kept here exercise flex-specific behavior: dtype storage
+// selection for every int width (I16/I32/U8/U16/U32/I64/U64), and edge
+// cases of the dtype-specific kernels (u64 wrap, i64::MIN abs/neg, bit
+// shift at width). Plain int arithmetic, scalar ops, bool->int cast
+// smokes, and negative-stride (flipped/transposed) variants have been
+// migrated to burn-backend-tests so they run against every backend.
+// When adding new tests, keep them here only if they probe flex dtype
+// storage; otherwise add them to
+// crates/burn-backend-tests/tests/tensor/int/ops/.
 #[cfg(test)]
 mod tests {
     use alloc::vec;
@@ -1042,91 +1042,6 @@ mod tests {
 
     use crate::Flex;
     use crate::FlexTensor;
-
-    fn i64_tensor<const N: usize>(data: [i64; N], shape: &[usize]) -> FlexTensor {
-        FlexTensor::from_data(TensorData::new(data.to_vec(), shape.to_vec()))
-    }
-
-    #[test]
-    fn test_int_add_transposed() {
-        // a = [[1, 2], [3, 4]] transposed -> [[1, 3], [2, 4]]
-        // b = [[10, 20], [30, 40]] transposed -> [[10, 30], [20, 40]]
-        // sum = [[11, 33], [22, 44]]
-        let a = i64_tensor([1, 2, 3, 4], &[2, 2]);
-        let b = i64_tensor([10, 20, 30, 40], &[2, 2]);
-        let a = Flex::int_swap_dims(a, 0, 1);
-        let b = Flex::int_swap_dims(b, 0, 1);
-        let result = Flex::int_add(a, b);
-        let data: Vec<i64> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![11, 33, 22, 44]);
-    }
-
-    #[test]
-    fn test_int_add_flipped() {
-        // [1, 2, 3, 4] flipped + [10, 20, 30, 40] flipped = [44, 33, 22, 11]
-        let a = i64_tensor([1, 2, 3, 4], &[4]);
-        let b = i64_tensor([10, 20, 30, 40], &[4]);
-        let a = Flex::int_flip(a, &[0]);
-        let b = Flex::int_flip(b, &[0]);
-        let result = Flex::int_add(a, b);
-        let data: Vec<i64> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![44, 33, 22, 11]);
-    }
-
-    #[test]
-    fn test_int_sub_flipped() {
-        // [10, 20, 30, 40] flipped - [1, 2, 3, 4] = [39, 28, 17, 6]
-        let a = i64_tensor([10, 20, 30, 40], &[4]);
-        let b = i64_tensor([1, 2, 3, 4], &[4]);
-        let a = Flex::int_flip(a, &[0]);
-        let result = Flex::int_sub(a, b);
-        let data: Vec<i64> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![39, 28, 17, 6]);
-    }
-
-    #[test]
-    fn test_int_mul_flipped_2d() {
-        // [[1, 2], [3, 4]] axis 0 flipped -> [[3, 4], [1, 2]]
-        // * [[10, 20], [30, 40]] = [[30, 80], [30, 80]]
-        let a = i64_tensor([1, 2, 3, 4], &[2, 2]);
-        let b = i64_tensor([10, 20, 30, 40], &[2, 2]);
-        let a = Flex::int_flip(a, &[0]);
-        let result = Flex::int_mul(a, b);
-        let data: Vec<i64> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![30, 80, 30, 80]);
-    }
-
-    #[test]
-    fn test_int_add_scalar_flipped() {
-        // [1, 2, 3, 4] flipped + 10 = [14, 13, 12, 11]
-        let a = i64_tensor([1, 2, 3, 4], &[4]);
-        let a = Flex::int_flip(a, &[0]);
-        let result = Flex::int_add_scalar(a, burn_backend::Scalar::from(10i64));
-        let data: Vec<i64> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![14, 13, 12, 11]);
-    }
-
-    #[test]
-    fn test_int_into_float_flipped() {
-        // [1, 2, 3, 4] flipped -> float = [4.0, 3.0, 2.0, 1.0]
-        let t = i64_tensor([1, 2, 3, 4], &[4]);
-        let t = Flex::int_flip(t, &[0]);
-        let float_t = Flex::int_into_float(t, burn_std::FloatDType::F32);
-        let data: Vec<f32> = float_t.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![4.0f32, 3.0, 2.0, 1.0]);
-    }
-
-    #[test]
-    fn test_int_mul_flipped_both_axes() {
-        // [[1, 2], [3, 4]] flipped on both axes -> [[4, 3], [2, 1]]
-        // * [[5, 5], [5, 5]] = [[20, 15], [10, 5]]
-        let a = i64_tensor([1, 2, 3, 4], &[2, 2]);
-        let b = i64_tensor([5, 5, 5, 5], &[2, 2]);
-        let a = Flex::int_flip(a, &[0, 1]);
-        let result = Flex::int_mul(a, b);
-        let data: Vec<i64> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![20, 15, 10, 5]);
-    }
 
     #[test]
     fn test_u64_div_large_values() {
