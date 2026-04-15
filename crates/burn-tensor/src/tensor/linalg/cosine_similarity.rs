@@ -28,8 +28,12 @@ pub fn cosine_similarity<B: Backend, const D: usize>(
     eps: Option<B::FloatElem>,
 ) -> Tensor<B, D> {
     let eps = eps.unwrap_or_else(|| {
-        let tiny = x1.dtype().finfo().unwrap_or(FloatDType::F32.finfo()).tiny;
-        B::FloatElem::from_elem(tiny)
+        let min_positive = x1
+            .dtype()
+            .finfo()
+            .unwrap_or(FloatDType::F32.finfo())
+            .min_positive;
+        B::FloatElem::from_elem(min_positive)
     });
 
     // Convert negative dimension to positive

@@ -94,7 +94,7 @@ impl KLDivLoss {
                     .dtype()
                     .finfo()
                     .unwrap_or(burn::tensor::FloatDType::F32.finfo())
-                    .tiny;
+                    .min_positive;
                 let log_target = targets.clone().clamp(epsilon, 1.0).log();
                 targets.mul(log_target.sub(predictions))
             }
