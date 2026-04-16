@@ -1,4 +1,4 @@
-use super::{conv, pool};
+use super::{conv, ctc, pool};
 use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, ElementConversion, TensorMetadata};
@@ -1102,6 +1102,32 @@ pub trait ModuleOps<B: Backend> {
             }
             None => scaled,
         }
+    }
+
+    /// Computes the Connectionist Temporal Classification (CTC) loss.
+    ///
+    /// Sums over all valid alignments between the input and target sequences
+    /// using the forward (alpha) algorithm.
+    ///
+    /// # Arguments
+    ///
+    /// * `log_probs` - Log-probabilities of shape `[T, N, C]`
+    /// * `targets` - Target label indices of shape `[N, S]`
+    /// * `input_lengths` - Actual input sequence lengths per batch element `[N]`
+    /// * `target_lengths` - Actual target lengths per batch element `[N]`
+    /// * `blank` - Index of the blank label
+    ///
+    /// # Returns
+    ///
+    /// Per-sample loss of shape `[N]`
+    fn ctc_loss(
+        log_probs: FloatTensor<B>,
+        targets: IntTensor<B>,
+        input_lengths: IntTensor<B>,
+        target_lengths: IntTensor<B>,
+        blank: usize,
+    ) -> FloatTensor<B> {
+        ctc::ctc_loss_default::<B>(log_probs, targets, input_lengths, target_lengths, blank)
     }
 
     /// Real-valued fast Fourier transform.
