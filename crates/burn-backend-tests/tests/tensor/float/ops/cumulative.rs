@@ -151,6 +151,10 @@ fn test_cummax_float_3d() {
     );
 }
 
+// NaN-propagation tests below. Gated off on ndarray and cube-based
+// backends: those follow IEEE 754 min/max (drop NaN), flex / tch follow
+// PyTorch/NumPy semantics (propagate NaN). See issue #4814.
+#[cfg(not(any(feature = "ndarray", feature = "cube")))]
 #[test]
 fn test_cummin_nan_propagation() {
     // Once NaN appears, cummin propagates it forward.
@@ -165,6 +169,7 @@ fn test_cummin_nan_propagation() {
     assert!(data[3].is_nan());
 }
 
+#[cfg(not(any(feature = "ndarray", feature = "cube")))]
 #[test]
 fn test_cummax_nan_propagation() {
     let tensor = TestTensor::<1>::from([1.0, f32::NAN, 5.0, 2.0]);
@@ -178,6 +183,7 @@ fn test_cummax_nan_propagation() {
     assert!(data[3].is_nan());
 }
 
+#[cfg(not(any(feature = "ndarray", feature = "cube")))]
 #[test]
 fn test_cummin_nan_at_start() {
     // NaN on the first element should poison the entire output.

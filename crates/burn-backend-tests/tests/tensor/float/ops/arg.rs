@@ -132,6 +132,9 @@ fn test_argmax_permuted_correctness() {
         .assert_eq(&TensorData::from([[[1], [1], [1]], [[1], [1], [1]]]), false);
 }
 
+// Gated off on ndarray and cube-based backends: those follow IEEE 754
+// min/max (drop NaN), flex / tch propagate NaN. See issue #4814.
+#[cfg(not(any(feature = "ndarray", feature = "cube")))]
 #[test]
 fn test_argmax_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);

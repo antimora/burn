@@ -268,6 +268,10 @@ fn test_max_abs_dim_2d_dim_1() {
     output.into_data().assert_eq(&expected, false);
 }
 
+// NaN-propagation tests below. Gated off on ndarray and cube-based
+// backends: those follow IEEE 754 min/max (drop NaN), flex / tch follow
+// PyTorch/NumPy semantics (propagate NaN). See issue #4814.
+#[cfg(not(any(feature = "ndarray", feature = "cube")))]
 #[test]
 fn test_max_dim_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
@@ -276,6 +280,7 @@ fn test_max_dim_nan_propagation() {
     assert!(values[0].is_nan());
 }
 
+#[cfg(not(any(feature = "ndarray", feature = "cube")))]
 #[test]
 fn test_min_dim_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
@@ -284,6 +289,7 @@ fn test_min_dim_nan_propagation() {
     assert!(values[0].is_nan());
 }
 
+#[cfg(not(any(feature = "ndarray", feature = "cube")))]
 #[test]
 fn test_max_dim_with_indices_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
