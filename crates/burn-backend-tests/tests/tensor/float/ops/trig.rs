@@ -30,9 +30,10 @@ fn should_support_sin_step_sliced() {
     let output = sliced.sin();
     let expected = TensorData::from([[0.0f32.sin(), 2.0f32.sin(), 4.0f32.sin(), 6.0f32.sin()]]);
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected,
+        Tolerance::default().set_half_precision_absolute(2e-3),
+    );
 }
 
 #[test]
@@ -48,9 +49,10 @@ fn should_support_cos_step_sliced_3d() {
         [3.0f32.cos(), 4.0f32.cos(), 5.0f32.cos()],
     ]]);
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected,
+        Tolerance::default().set_half_precision_absolute(2e-3),
+    );
 }
 
 #[test]

@@ -468,7 +468,10 @@ fn test_multiple_reduce_dims_permuted() {
 
 #[test]
 fn test_sum_transposed() {
-    // Sum over a non-contiguous (transposed) tensor; result is order-independent.
+    // Stress the sum kernel on a non-contiguous (transposed) input. Uses
+    // total reduction so the assertion doesn't depend on traversal order;
+    // a stronger per-axis variant would require flex issue #4816 to be
+    // resolved first.
     let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
     let output = tensor.transpose().sum();
 
@@ -479,57 +482,67 @@ fn test_sum_transposed() {
 
 #[test]
 fn test_sum_flipped() {
-    let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0, 5.0]);
-    let output = tensor.flip([0]).sum();
+    // Flip axis 0, sum along axis 1: per-row sums appear in the flipped
+    // row order, so a no-op flip would give the unflipped order.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [10.0, 20.0, 30.0]]);
+    let output = tensor.flip([0]).sum_dim(1);
 
     output
         .into_data()
-        .assert_eq(&TensorData::from([15.0]), false);
+        .assert_eq(&TensorData::from([[60.0], [6.0]]), false);
 }
 
 #[test]
 fn test_sum_dim_flipped() {
+    // Flip axis 0, reduce axis 1: rows are swapped so per-row sums appear
+    // reversed, which a flip-as-noop would not produce.
     let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-    let output = tensor.flip([0]).sum_dim(0);
+    let output = tensor.flip([0]).sum_dim(1);
 
     output
         .into_data()
-        .assert_eq(&TensorData::from([[5.0, 7.0, 9.0]]), false);
+        .assert_eq(&TensorData::from([[15.0], [6.0]]), false);
 }
 
 #[test]
 fn test_sum_dim_flipped_axis1() {
+    // Flip axis 1, reduce axis 0: columns are reversed, so column sums
+    // appear in reversed order.
     let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-    let output = tensor.flip([1]).sum_dim(1);
+    let output = tensor.flip([1]).sum_dim(0);
 
     output
         .into_data()
-        .assert_eq(&TensorData::from([[6.0], [15.0]]), false);
+        .assert_eq(&TensorData::from([[9.0, 7.0, 5.0]]), false);
 }
 
 #[test]
 fn test_mean_dim_flipped() {
+    // Flip axis 0, mean axis 1: row means appear in reversed row order.
     let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-    let output = tensor.flip([0]).mean_dim(0);
+    let output = tensor.flip([0]).mean_dim(1);
 
     output
         .into_data()
-        .assert_approx_eq::<FloatElem>(&TensorData::from([[2.5, 3.5, 4.5]]), Tolerance::default());
+        .assert_approx_eq::<FloatElem>(&TensorData::from([[5.0], [2.0]]), Tolerance::default());
 }
 
 #[test]
 fn test_prod_flipped() {
-    let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]);
-    let output = tensor.flip([0]).prod();
+    // Flip axis 0, prod along axis 1: per-row products appear in reversed
+    // row order.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
+    let output = tensor.flip([0]).prod_dim(1);
 
     output
         .into_data()
-        .assert_approx_eq::<FloatElem>(&TensorData::from([24.0]), Tolerance::default());
+        .assert_approx_eq::<FloatElem>(&TensorData::from([[12.0], [2.0]]), Tolerance::default());
 }
 
 #[test]
 fn test_sum_narrowed() {
-    // Narrow to indices 1..4 of [0, 1, 2, 3, 4] -> [1, 2, 3]
+    // Narrow to indices 1..4 of [0, 1, 2, 3, 4] -> [1, 2, 3]. Without the
+    // narrow the sum would be 10, not 6.
     let tensor = TestTensor::<1>::from([0.0, 1.0, 2.0, 3.0, 4.0]);
     let output = tensor.narrow(0, 1, 3).sum();
 
@@ -540,12 +553,15 @@ fn test_sum_narrowed() {
 
 #[test]
 fn test_sum_flipped_both_axes() {
-    let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
-    let output = tensor.flip([0, 1]).sum();
+    // Flip both axes, sum along axis 0: column sums appear in reversed
+    // order because axis 1 was flipped; row pairing is also swapped so a
+    // missing axis-0 flip would give different pairings.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.flip([0, 1]).sum_dim(0);
 
     output
         .into_data()
-        .assert_eq(&TensorData::from([10.0]), false);
+        .assert_eq(&TensorData::from([[9.0, 7.0, 5.0]]), false);
 }
 
 #[test]
