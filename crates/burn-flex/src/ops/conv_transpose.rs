@@ -471,5 +471,4 @@ mod tests {
             assert!((a.to_f32() - e).abs() < 0.1);
         }
     }
-
 }

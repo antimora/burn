@@ -826,7 +826,6 @@ fn matmul_batched_i64(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
 // Tests
 // ============================================================================
 
-
 // Tests kept here exercise flex-specific behavior of the matmul kernel:
 // dtype-specific storage paths (F64, F16, BF16) that the generic
 // FloatElem-parameterized backend-tests cannot reach. Plain contiguous
@@ -909,14 +908,8 @@ mod tests {
     #[test]
     fn test_matmul_batched_transposed_f64() {
         // Non-contiguous (swap_dims) batched matmul on the F64 dtype path.
-        let q_data = TensorData::new(
-            vec![1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
-            [2, 2, 2],
-        );
-        let k_data = TensorData::new(
-            vec![1.0f64, 0.0, 0.0, 1.0, 2.0, 0.0, 0.0, 2.0],
-            [2, 2, 2],
-        );
+        let q_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], [2, 2, 2]);
+        let k_data = TensorData::new(vec![1.0f64, 0.0, 0.0, 1.0, 2.0, 0.0, 0.0, 2.0], [2, 2, 2]);
 
         let q = FlexTensor::from_data(q_data.clone());
         let k = FlexTensor::from_data(k_data.clone());

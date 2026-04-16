@@ -1006,7 +1006,9 @@ mod tests {
             flex_f32((0..len).map(g).collect(), shape)
         };
 
-        let q = mk(&[batch, heads, seq_q, head_dim], &|i| (i as f32 * 0.1).sin());
+        let q = mk(&[batch, heads, seq_q, head_dim], &|i| {
+            (i as f32 * 0.1).sin()
+        });
         let k = mk(&[batch, heads, seq_kv, head_dim], &|i| {
             (i as f32 * 0.1 + 1.0).sin()
         });
@@ -1058,7 +1060,9 @@ mod tests {
             flex_f32((0..len).map(g).collect(), shape)
         };
 
-        let q = mk(&[batch, heads, seq_q, head_dim], &|i| (i as f32 * 0.1).sin());
+        let q = mk(&[batch, heads, seq_q, head_dim], &|i| {
+            (i as f32 * 0.1).sin()
+        });
         let k = mk(&[batch, heads, seq_kv, head_dim], &|i| {
             (i as f32 * 0.1 + 1.0).sin()
         });
@@ -1145,8 +1149,16 @@ mod tests {
 
         // All scores equal -> output = mean of 0..127 = 63.5 for both cols.
         assert_eq!(data.len(), seq_q * val_dim);
-        assert!((data[0] - 63.5).abs() < 0.1, "expected ~63.5, got {}", data[0]);
-        assert!((data[1] - 63.5).abs() < 0.1, "expected ~63.5, got {}", data[1]);
+        assert!(
+            (data[0] - 63.5).abs() < 0.1,
+            "expected ~63.5, got {}",
+            data[0]
+        );
+        assert!(
+            (data[1] - 63.5).abs() < 0.1,
+            "expected ~63.5, got {}",
+            data[1]
+        );
     }
 
     #[test]
@@ -1213,7 +1225,11 @@ mod tests {
         let data: &[f32] = result.storage();
 
         // Visible = 64..128 -> mean of 64..=127 = 95.5.
-        assert!((data[0] - 95.5).abs() < 0.1, "expected ~95.5, got {}", data[0]);
+        assert!(
+            (data[0] - 95.5).abs() < 0.1,
+            "expected ~95.5, got {}",
+            data[0]
+        );
     }
 
     #[test]
@@ -1273,8 +1289,16 @@ mod tests {
 
         // Uniform attention -> mean of 0..99 = 49.5.
         assert_eq!(data.len(), seq_q);
-        assert!((data[0] - 49.5).abs() < 0.1, "expected ~49.5, got {}", data[0]);
-        assert!((data[1] - 49.5).abs() < 0.1, "expected ~49.5, got {}", data[1]);
+        assert!(
+            (data[0] - 49.5).abs() < 0.1,
+            "expected ~49.5, got {}",
+            data[0]
+        );
+        assert!(
+            (data[1] - 49.5).abs() < 0.1,
+            "expected ~49.5, got {}",
+            data[1]
+        );
     }
 
     /// Verify naive attention produces the same results as flash attention
@@ -1368,7 +1392,16 @@ mod tests {
 
         run_both(1, 1, 4, 4, 8, 8, false, false, default, "basic_4x4");
         run_both(
-            2, 4, 8, 8, 16, 16, false, false, default, "multi_head_batch",
+            2,
+            4,
+            8,
+            8,
+            16,
+            16,
+            false,
+            false,
+            default,
+            "multi_head_batch",
         );
         run_both(1, 2, 4, 32, 16, 16, false, false, default, "cross_attn");
         run_both(1, 1, 4, 128, 16, 16, false, false, default, "multi_tile");
@@ -1378,7 +1411,16 @@ mod tests {
         run_both(1, 2, 8, 8, 16, 16, true, false, default, "with_mask");
         run_both(1, 2, 8, 8, 16, 16, false, true, default, "with_bias");
         run_both(
-            2, 2, 16, 128, 32, 32, true, true, causal, "mask_bias_causal",
+            2,
+            2,
+            16,
+            128,
+            32,
+            32,
+            true,
+            true,
+            causal,
+            "mask_bias_causal",
         );
         run_both(1, 1, 4, 100, 16, 16, false, false, default, "partial_tile");
         run_both(

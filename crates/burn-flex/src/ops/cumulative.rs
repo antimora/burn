@@ -256,7 +256,6 @@ pub fn cummax_half<E: Element + Pod + Default + Copy>(
     )
 }
 
-
 // Cumsum / cumprod / cummin / cummax coverage (basic, stride variants,
 // NaN propagation, int dtype) lives in
 // crates/burn-backend-tests/tests/tensor/{float,int}/ops/cumulative.rs so

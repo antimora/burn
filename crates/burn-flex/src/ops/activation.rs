@@ -1268,8 +1268,7 @@ mod tests {
         let data: Vec<f32> = (0..128 * 16).map(|i| ((i % 19) as f32) * 0.03).collect();
         let gamma_data: Vec<f32> = vec![1.0; 16];
         let beta_data: Vec<f32> = vec![0.0; 16];
-        let expected =
-            layer_norm_last_ref(&data, &gamma_data, Some(&beta_data), 1e-5f32, 16);
+        let expected = layer_norm_last_ref(&data, &gamma_data, Some(&beta_data), 1e-5f32, 16);
         let fused = crate::ops::activation::layer_norm(
             flex_f32(data, &[128, 16]),
             flex_f32(gamma_data, &[16]),
@@ -1348,8 +1347,7 @@ mod tests {
         let data: Vec<f32> = (0..34).map(|i| (i as f32 * 0.137) - 2.3).collect();
         let gamma_data: Vec<f32> = (0..17).map(|i| 1.0 + i as f32 * 0.05).collect();
         let beta_data: Vec<f32> = (0..17).map(|i| i as f32 * 0.01).collect();
-        let expected =
-            layer_norm_last_ref(&data, &gamma_data, Some(&beta_data), 1e-5f32, 17);
+        let expected = layer_norm_last_ref(&data, &gamma_data, Some(&beta_data), 1e-5f32, 17);
         let fused = crate::ops::activation::layer_norm(
             flex_f32(data, &[2, 17]),
             flex_f32(gamma_data, &[17]),
@@ -1463,5 +1461,4 @@ mod tests {
         let gamma = flex_f64(vec![1.0; 4], &[4]);
         let _ = crate::ops::activation::layer_norm(t, gamma, None, 1e-5);
     }
-
 }
