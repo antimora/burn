@@ -115,6 +115,7 @@ pub fn ctc_loss_backward_default<B: Backend>(
 /// * `log_beta_full` - Beta recursion output `[T, N, 2S+1]`
 /// * `nll` - Per-sample negative log-likelihood (forward loss) `[N]`
 /// * `blank` - Index of the blank label
+#[allow(clippy::too_many_arguments)]
 pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     log_probs: FloatTensor<B>,
     targets: IntTensor<B>,
