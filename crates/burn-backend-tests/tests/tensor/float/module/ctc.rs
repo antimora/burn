@@ -36,10 +36,8 @@ fn test_ctc_loss_matches_pytorch() {
             }
         }
     }
-    let logits = TestTensor::<3>::from(burn_tensor::TensorData::new(
-        data,
-        [t_size, n_size, c_size],
-    ));
+    let logits =
+        TestTensor::<3>::from(burn_tensor::TensorData::new(data, [t_size, n_size, c_size]));
     let log_probs = log_softmax(logits, 2);
 
     let targets = TestTensorInt::<2>::from([[1, 2, 0], [1, 0, 0], [3, 2, 1]]);
