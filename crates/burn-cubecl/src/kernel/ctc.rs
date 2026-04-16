@@ -21,11 +21,12 @@ const SHARED_ALPHA_CAPACITY: u32 = 8192;
 /// before the next iteration. This collapses what would otherwise be roughly
 /// `40 * T` host-side dispatches into a single kernel launch.
 ///
-/// Note on -inf: we use `F::min_value()` (the most negative finite value) to
-/// represent "impossible alignment" rather than true `-inf`. The standard
-/// log-sum-exp formulation then works without explicit -inf masking because
-/// `exp(min_value - finite)` underflows to 0 cleanly (no NaN from
-/// `-inf - -inf`).
+/// Impossible alignments are represented as `F::NEG_INFINITY` so that when an
+/// entire sequence has no valid alignment (e.g. `target_length > input_length`)
+/// the forward loss comes out as `+inf`, which is what `zero_infinity` masking
+/// in `burn-nn` detects via `is_inf`. Each `log_sum_exp` guards `mx == -inf`
+/// explicitly to avoid the `-inf - -inf = NaN` case that would otherwise
+/// propagate through the recursion.
 #[cube(launch)]
 fn ctc_loss_kernel<F: Float, I: Numeric>(
     log_probs: &Tensor<F>,      // [T, N, C]
@@ -58,7 +59,7 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     // batches in the t-loop (a thread writing alpha[s] races with another
     // thread still reading alpha[s-1] or alpha[s-2] for its own s).
     let mut alpha = SharedMemory::<F>::new(2 * alpha_cap);
-    let neg_inf = F::min_value();
+    let neg_inf = F::new(f32::NEG_INFINITY);
     let one = F::new(1.0);
 
     // Initialize alpha at t = 0. Each thread strides over its assigned s positions.
@@ -114,14 +115,20 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
                 a_s_m2 = alpha[s - 2];
             }
 
-            // log_sum_exp(a_s, a_s_m1) - using min_value avoids -inf NaN issues
+            // log_sum_exp(a_s, a_s_m1). Guarding `mx == -inf` avoids the
+            // `-inf - -inf = NaN` case; when both terms are -inf the sum is
+            // -inf too.
             let mut mx01 = a_s;
             let mut mn01 = a_s_m1;
             if a_s_m1 > a_s {
                 mx01 = a_s_m1;
                 mn01 = a_s;
             }
-            let lse_01 = mx01 + (one + (mn01 - mx01).exp()).ln();
+            let lse_01 = if mx01 == neg_inf {
+                mx01
+            } else {
+                mx01 + (one + (mn01 - mx01).exp()).ln()
+            };
 
             let mut combined = lse_01;
             if skip_allowed {
@@ -131,7 +138,11 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
                     mx2 = a_s_m2;
                     mn2 = lse_01;
                 }
-                combined = mx2 + (one + (mn2 - mx2).exp()).ln();
+                combined = if mx2 == neg_inf {
+                    mx2
+                } else {
+                    mx2 + (one + (mn2 - mx2).exp()).ln()
+                };
             }
             // We can write directly to alpha[s] only after every other thread
             // has finished reading alpha[s-1] / alpha[s-2] for *its* s. Since
@@ -172,7 +183,11 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
             mx = last_label;
             mn = last_blank;
         }
-        let log_lik = mx + (one + (mn - mx).exp()).ln();
+        let log_lik = if mx == neg_inf {
+            mx
+        } else {
+            mx + (one + (mn - mx).exp()).ln()
+        };
 
         output[n] = F::new(0.0) - log_lik;
     }
@@ -288,7 +303,7 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     // residual alpha values sitting in the active row between phases are never
     // observed by beta (its boundary init overwrites every slot it reads).
     let mut state = SharedMemory::<F>::new(2 * alpha_cap);
-    let neg_inf = F::min_value();
+    let neg_inf = F::new(f32::NEG_INFINITY);
     let one = F::new(1.0);
 
     // ---------- Alpha phase (forward) ----------
@@ -347,7 +362,11 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
                 mx01 = a_s_m1;
                 mn01 = a_s;
             }
-            let lse_01 = mx01 + (one + (mn01 - mx01).exp()).ln();
+            let lse_01 = if mx01 == neg_inf {
+                mx01
+            } else {
+                mx01 + (one + (mn01 - mx01).exp()).ln()
+            };
 
             let mut combined = lse_01;
             if skip_allowed {
@@ -357,7 +376,11 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
                     mx2 = a_s_m2;
                     mn2 = lse_01;
                 }
-                combined = mx2 + (one + (mn2 - mx2).exp()).ln();
+                combined = if mx2 == neg_inf {
+                    mx2
+                } else {
+                    mx2 + (one + (mn2 - mx2).exp()).ln()
+                };
             }
             state[alpha_cap + s] = log_p + combined;
             s += cube_dim;
@@ -385,7 +408,11 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
             mx = last_label;
             mn = last_blank;
         }
-        let log_lik = mx + (one + (mn - mx).exp()).ln();
+        let log_lik = if mx == neg_inf {
+            mx
+        } else {
+            mx + (one + (mn - mx).exp()).ln()
+        };
         nll_out[n] = F::new(0.0) - log_lik;
     }
 
@@ -456,7 +483,11 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
                     mx01 = b_s_p1;
                     mn01 = b_s;
                 }
-                let lse_01 = mx01 + (one + (mn01 - mx01).exp()).ln();
+                let lse_01 = if mx01 == neg_inf {
+                    mx01
+                } else {
+                    mx01 + (one + (mn01 - mx01).exp()).ln()
+                };
 
                 let mut combined = lse_01;
                 if skip_allowed {
@@ -466,7 +497,11 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
                         mx2 = b_s_p2;
                         mn2 = lse_01;
                     }
-                    combined = mx2 + (one + (mn2 - mx2).exp()).ln();
+                    combined = if mx2 == neg_inf {
+                        mx2
+                    } else {
+                        mx2 + (one + (mn2 - mx2).exp()).ln()
+                    };
                 }
                 state[alpha_cap + s] = log_p + combined;
                 s += cube_dim;

@@ -640,34 +640,24 @@ fn insert_blanks<B: Backend>(
     device: &B::Device,
     int_dtype: burn_std::IntDType,
 ) -> IntTensor<B> {
-    let mut result = B::int_full(
+    let result = B::int_full(
         Shape::new([batch_size, max_l_prime_len]),
         (blank as i64).into(),
         device,
         int_dtype,
     );
 
-    // Place labels at odd indices: 1, 3, 5, ...
-    for s in 0..max_target_len {
-        let label = B::int_slice(
-            targets.clone(),
-            &[
-                Slice::full(),
-                Slice::new(s as isize, Some(s as isize + 1), 1),
-            ],
-        );
-        let dest_col = 2 * s + 1;
-        result = B::int_slice_assign(
-            result,
-            &[
-                Slice::full(),
-                Slice::new(dest_col as isize, Some(dest_col as isize + 1), 1),
-            ],
-            label,
-        );
+    if max_target_len == 0 {
+        return result;
     }
 
-    result
+    // Place every target label at odd columns {1, 3, 5, ...} in one
+    // strided slice_assign, equivalent to `result[:, 1::2] = targets`.
+    B::int_slice_assign(
+        result,
+        &[Slice::full(), Slice::new(1, None, 2)],
+        targets.clone(),
+    )
 }
 
 /// Right-shift a 2D float tensor by `shift` positions, filling the leading
