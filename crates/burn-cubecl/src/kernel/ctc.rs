@@ -283,9 +283,10 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     let bo_s = beta_out.stride(2);
 
     // Shared memory layout: [0..alpha_cap] is the active row; [alpha_cap..2*alpha_cap]
-    // is scratch for the next row. Same layout reused for alpha and beta - beta
-    // phase starts with an explicit reset to -inf since stale alpha values would
-    // otherwise leak in as "beta[t+1, s+1]" reads at the l_prime_len boundary.
+    // is scratch for the next row. Same layout is reused for alpha and beta. Beta
+    // reads are guarded by `s + 1 < l_prime_len` / `s + 2 < l_prime_len`, so the
+    // residual alpha values sitting in the active row between phases are never
+    // observed by beta (its boundary init overwrites every slot it reads).
     let mut state = SharedMemory::<F>::new(2 * alpha_cap);
     let neg_inf = F::min_value();
     let one = F::new(1.0);
@@ -388,21 +389,16 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
         nll_out[n] = F::new(0.0) - log_lik;
     }
 
-    // ---------- Beta phase (reverse) ----------
-    //
-    // Reset shared memory to -inf so that reads at the l_prime_len boundary
-    // (e.g. `state[s + 1]` at `s = l_prime_len - 1`) return -inf instead of
-    // the stale alpha value that's sitting there.
-    let mut s = UNIT_POS_X as usize;
-    while s < 2 * alpha_cap {
-        state[s] = neg_inf;
-        s += cube_dim;
-    }
+    // Fence thread 0's read of state[2*target_len] / state[2*target_len - 1]
+    // against the beta boundary init, which writes those same positions.
     sync_cube();
+
+    // ---------- Beta phase (reverse) ----------
 
     if input_len > 0 {
         // Boundary initialization at t = input_len - 1: set beta[s] = log_probs[t, l'[s]]
-        // at the two "last" positions (2U and 2U-1). All other s stay -inf.
+        // at s = 2*target_len, and when target_len > 0 also at s = 2*target_len - 1.
+        // All other s positions in range get -inf.
         let t_last = input_len - 1;
         let mut s = UNIT_POS_X as usize;
         while s < l_prime_len {
