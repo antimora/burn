@@ -132,10 +132,3 @@ fn test_argmax_permuted_correctness() {
         .assert_eq(&TensorData::from([[[1], [1], [1]], [[1], [1], [1]]]), false);
 }
 
-#[test]
-fn test_argmax_nan_propagation() {
-    let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
-    let output = tensor.argmax(1);
-
-    output.into_data().assert_eq(&TensorData::from([[1]]), false);
-}

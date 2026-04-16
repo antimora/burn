@@ -257,9 +257,46 @@ pub fn cummax_half<E: Element + Pod + Default + Copy>(
 }
 
 
-// Cumsum / cumprod / cummin / cummax coverage (basic, stride variants,
-// NaN propagation, int dtype) lives in
+// Cumsum / cumprod / cummin / cummax basic + stride coverage lives in
 // crates/burn-backend-tests/tests/tensor/{float,int}/ops/cumulative.rs so
-// every backend is exercised. When adding new tests, keep them here only
-// if they probe flex-specific kernel internals; otherwise add them
-// there.
+// every backend is exercised. The NaN-propagation tests below stay here
+// because cummin/cummax NaN semantics diverge by backend (IEEE 754 leaves
+// min/max of (NaN, x) implementation defined; flex propagates NaN,
+// ndarray ignores it). These pin flex's behavior.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::TensorData;
+
+    #[test]
+    fn test_cummin_nan_propagation() {
+        let t = FlexTensor::from_data(TensorData::new(vec![3.0f32, f32::NAN, 1.0, 2.0], [4]));
+        let result = cummin_f32(t, 0);
+        let data: Vec<f32> = result.into_data().to_vec().unwrap();
+        assert_eq!(data[0], 3.0);
+        assert!(data[1].is_nan());
+        assert!(data[2].is_nan());
+        assert!(data[3].is_nan());
+    }
+
+    #[test]
+    fn test_cummax_nan_propagation() {
+        let t = FlexTensor::from_data(TensorData::new(vec![1.0f32, f32::NAN, 5.0, 2.0], [4]));
+        let result = cummax_f32(t, 0);
+        let data: Vec<f32> = result.into_data().to_vec().unwrap();
+        assert_eq!(data[0], 1.0);
+        assert!(data[1].is_nan());
+        assert!(data[2].is_nan());
+        assert!(data[3].is_nan());
+    }
+
+    #[test]
+    fn test_cummin_nan_at_start() {
+        let t = FlexTensor::from_data(TensorData::new(vec![f32::NAN, 1.0, 2.0], [3]));
+        let result = cummin_f32(t, 0);
+        let data: Vec<f32> = result.into_data().to_vec().unwrap();
+        assert!(data[0].is_nan());
+        assert!(data[1].is_nan());
+        assert!(data[2].is_nan());
+    }
+}
