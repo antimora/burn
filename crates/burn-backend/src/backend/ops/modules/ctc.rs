@@ -72,12 +72,6 @@ pub fn ctc_loss_backward_default<B: Backend>(
     grad_loss: FloatTensor<B>,
     blank: usize,
 ) -> FloatTensor<B> {
-    let log_probs_shape = log_probs.shape();
-    let [max_input_length, batch_size, num_classes] = log_probs_shape.dims::<3>();
-    let device = B::float_device(&log_probs);
-    let settings = get_device_settings::<B>(&device);
-
-    // Compute alpha (full history) and beta in log space.
     let alpha = AlphaCtx::<B>::compute(
         log_probs.clone(),
         &targets,
@@ -85,18 +79,69 @@ pub fn ctc_loss_backward_default<B: Backend>(
         target_lengths.clone(),
         blank,
     );
-    let log_alpha_full = alpha.full.clone();
-    let max_l_prime_len = alpha.max_l_prime_len;
-    let blank_inserted_targets = alpha.blank_inserted_targets.clone();
     let log_beta_full = compute_log_beta_full::<B>(
         log_probs.clone(),
         &alpha,
         input_lengths.clone(),
         target_lengths.clone(),
     );
+    let nll = extract_loss::<B>(&alpha, target_lengths);
 
-    // Per-sample negative log-likelihood (== forward loss).
-    let nll = extract_loss::<B>(&alpha, target_lengths.clone());
+    ctc_grad_from_alpha_beta_default::<B>(
+        log_probs,
+        targets,
+        input_lengths,
+        grad_loss,
+        alpha.full,
+        log_beta_full,
+        nll,
+        blank,
+    )
+}
+
+/// Compose the CTC gradient w.r.t. `log_probs` from pre-computed alpha, beta, and nll.
+///
+/// The T-iteration alpha and beta recursions are the dominant cost of the backward
+/// pass. Backends that fuse those recursions into a single kernel launch (such as
+/// burn-cubecl) can call this helper to reuse the gradient composition.
+///
+/// # Arguments
+///
+/// * `log_probs` - Log-probabilities `[T, N, C]`
+/// * `targets` - Target label indices `[N, S]`
+/// * `input_lengths` - Actual input sequence lengths per batch element `[N]`
+/// * `grad_loss` - Upstream gradient w.r.t. the per-sample loss `[N]`
+/// * `log_alpha_full` - Alpha recursion output `[T, N, 2S+1]`
+/// * `log_beta_full` - Beta recursion output `[T, N, 2S+1]`
+/// * `nll` - Per-sample negative log-likelihood (forward loss) `[N]`
+/// * `blank` - Index of the blank label
+pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
+    log_probs: FloatTensor<B>,
+    targets: IntTensor<B>,
+    input_lengths: IntTensor<B>,
+    grad_loss: FloatTensor<B>,
+    log_alpha_full: FloatTensor<B>,
+    log_beta_full: FloatTensor<B>,
+    nll: FloatTensor<B>,
+    blank: usize,
+) -> FloatTensor<B> {
+    let log_probs_shape = log_probs.shape();
+    let [max_input_length, batch_size, num_classes] = log_probs_shape.dims::<3>();
+    let target_shape = targets.shape();
+    let max_target_len = target_shape.dims::<2>()[1];
+    let max_l_prime_len = 2 * max_target_len + 1;
+    let device = B::float_device(&log_probs);
+    let settings = get_device_settings::<B>(&device);
+
+    let blank_inserted_targets = insert_blanks::<B>(
+        &targets,
+        batch_size,
+        max_target_len,
+        max_l_prime_len,
+        blank,
+        &device,
+        settings.int_dtype,
+    );
 
     // Both log_alpha[t, n, s] and log_beta[t, n, s] include a factor of
     // log_probs[t, n, l'[s]] (added on every recursion step). The CTC paper's
