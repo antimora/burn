@@ -51,9 +51,7 @@ fn test_argmax_flipped() {
     let tensor = TestTensor::<1>::from([1.0, 5.0, 3.0, 2.0, 4.0]);
     let output = tensor.flip([0]).argmax(0);
 
-    output
-        .into_data()
-        .assert_eq(&TensorData::from([3]), false);
+    output.into_data().assert_eq(&TensorData::from([3]), false);
 }
 
 #[test]
@@ -73,9 +71,7 @@ fn test_argmin_flipped() {
     let tensor = TestTensor::<1>::from([5.0, 1.0, 4.0, 2.0, 3.0]);
     let output = tensor.flip([0]).argmin(0);
 
-    output
-        .into_data()
-        .assert_eq(&TensorData::from([3]), false);
+    output.into_data().assert_eq(&TensorData::from([3]), false);
 }
 
 #[test]
@@ -111,10 +107,8 @@ fn test_argmax_4d_middle_dim() {
     // Regression (YOLOv8n): shape [1, 84, 80, 80], argmax dim=1.
     let n = 1 * 84 * 80 * 80;
     let data: Vec<f32> = (0..n).map(|i| (i % 84) as f32).collect();
-    let tensor = TestTensor::<4>::from_data(
-        TensorData::new(data, [1, 84, 80, 80]),
-        &Default::default(),
-    );
+    let tensor =
+        TestTensor::<4>::from_data(TensorData::new(data, [1, 84, 80, 80]), &Default::default());
 
     let output = tensor.argmax(1);
     assert_eq!(output.dims(), [1, 1, 80, 80]);
@@ -140,5 +134,7 @@ fn test_argmax_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
     let output = tensor.argmax(1);
 
-    output.into_data().assert_eq(&TensorData::from([[1]]), false);
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[1]]), false);
 }

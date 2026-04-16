@@ -39,8 +39,7 @@ fn should_support_sin_step_sliced() {
 fn should_support_cos_step_sliced_3d() {
     // 3D tensor with step-2 slice on last dim (the RF-DETR pattern).
     let data: Vec<f32> = (0..12).map(|i| i as f32 * 0.5).collect();
-    let tensor =
-        TestTensor::<3>::from_data(TensorData::new(data, [1, 2, 6]), &Default::default());
+    let tensor = TestTensor::<3>::from_data(TensorData::new(data, [1, 2, 6]), &Default::default());
     let sliced = tensor.slice(s![.., .., 0..6;2]);
 
     let output = sliced.cos();

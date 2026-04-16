@@ -168,8 +168,7 @@ fn float_mask_fill_infinite() {
 fn should_support_mask_fill_transposed_tensor() {
     // [[1, 2], [3, 4]] transposed -> [[1, 3], [2, 4]]; mask [[T, F], [F, T]] -> [[0, 3], [2, 0]]
     let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).transpose();
-    let mask =
-        TestTensorBool::<2>::from([[true, false], [false, true]]);
+    let mask = TestTensorBool::<2>::from([[true, false], [false, true]]);
 
     let output = tensor.mask_fill(mask, 0.0);
 
@@ -209,8 +208,7 @@ fn should_support_mask_where_flipped_2d() {
     // [[1,2],[3,4]] axis-0 flipped -> [[3,4],[1,2]]; mask [[T,F],[F,T]];
     // value [[10,20],[30,40]] -> [[10,4],[1,40]]
     let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).flip([0]);
-    let mask =
-        TestTensorBool::<2>::from([[true, false], [false, true]]);
+    let mask = TestTensorBool::<2>::from([[true, false], [false, true]]);
     let value = TestTensor::<2>::from([[10.0, 20.0], [30.0, 40.0]]);
 
     let output = tensor.mask_where(mask, value);
