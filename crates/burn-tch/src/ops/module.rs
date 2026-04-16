@@ -534,7 +534,7 @@ mod tests {
         // Only valid alignment is (1, 0, 1) with prob (1/2)^3.
         // Loss = -ln(1/8) = 3 * ln(2)
         let device = Default::default();
-        let log_probs_data = vec![(0.5f32).ln(); 3 * 1 * 2];
+        let log_probs_data = vec![(0.5f32).ln(); 3 * 2];
         let log_probs = B::float_from_data(TensorData::new(log_probs_data, [3, 1, 2]), &device);
         let targets = B::int_from_data(TensorData::from([[1i64, 1]]), &device);
         let input_lengths = B::int_from_data(TensorData::from([3i64]), &device);

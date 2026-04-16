@@ -176,13 +176,28 @@ pub fn ctc_loss_default<B: Backend>(
     // Extract final log-likelihood: log_sum_exp(alpha[2*U], alpha[2*U-1])
     let last_blank_idx = B::int_mul_scalar(target_lengths.clone(), 2.into());
     let last_blank_idx = B::int_reshape(last_blank_idx, Shape::new([batch_size, 1]));
-    let last_label_idx = B::int_sub_scalar(last_blank_idx.clone(), 1.into());
+    // Guard target_lengths = 0: clamp last_label_idx to 0 to avoid an invalid
+    // negative gather index, then mask the corresponding alpha value to -inf
+    // so log_sum_exp falls back to last_blank for that batch element.
+    let last_label_idx = B::int_clamp_min(
+        B::int_sub_scalar(last_blank_idx.clone(), 1.into()),
+        0.into(),
+    );
 
     let log_alpha_last_blank = B::float_gather(1, log_alpha.clone(), last_blank_idx);
     let log_alpha_last_blank = B::float_reshape(log_alpha_last_blank, Shape::new([batch_size]));
 
     let log_alpha_last_label = B::float_gather(1, log_alpha, last_label_idx);
     let log_alpha_last_label = B::float_reshape(log_alpha_last_label, Shape::new([batch_size]));
+
+    // Where target_lengths == 0, last_label is meaningless: substitute -inf so
+    // log_sum_exp(last_blank, -inf) = last_blank.
+    let target_len_zero = B::int_equal_elem(target_lengths, 0.into(), settings.bool_dtype);
+    let log_alpha_last_label = B::float_mask_fill(
+        log_alpha_last_label,
+        target_len_zero,
+        f32::NEG_INFINITY.into(),
+    );
 
     let log_likelihood = log_sum_exp::<B>(
         log_alpha_last_blank,
@@ -232,7 +247,8 @@ fn insert_blanks<B: Backend>(
     result
 }
 
-/// Right-shift a 2D float tensor by `shift` positions, filling with -inf.
+/// Right-shift a 2D float tensor by `shift` positions, filling the leading
+/// columns with `f32::NEG_INFINITY` cast to the requested float dtype.
 fn right_shift<B: Backend>(
     tensor: &FloatTensor<B>,
     batch_size: usize,

@@ -1750,6 +1750,25 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
 
+    fn ctc_loss(
+        log_probs: FloatTensor<Autodiff<B, C>>,
+        targets: burn_backend::tensor::IntTensor<Autodiff<B, C>>,
+        input_lengths: burn_backend::tensor::IntTensor<Autodiff<B, C>>,
+        target_lengths: burn_backend::tensor::IntTensor<Autodiff<B, C>>,
+        blank: usize,
+    ) -> FloatTensor<Autodiff<B, C>> {
+        // Force the decomposed default impl so autodiff observes every primitive
+        // op and can build a gradient path. Backends with fused kernels (cubecl,
+        // tch) only get the fast path during inference.
+        burn_backend::ops::ctc::ctc_loss_default::<Self>(
+            log_probs,
+            targets,
+            input_lengths,
+            target_lengths,
+            blank,
+        )
+    }
+
     fn rfft(
         _signal: FloatTensor<Autodiff<B, C>>,
         _dim: usize,

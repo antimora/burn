@@ -112,6 +112,7 @@ impl CTCLoss {
         target_lengths: Tensor<B, 1, Int>,
     ) -> Tensor<B, 1> {
         let [_max_input_length, batch_size, num_classes] = log_probs.dims();
+        let max_target_len = targets.dims()[1];
         let input_lengths_len = input_lengths.dims()[0];
         let target_lengths_len = target_lengths.dims()[0];
         self.assertions(
@@ -120,6 +121,11 @@ impl CTCLoss {
             targets.clone(),
             input_lengths_len,
             target_lengths_len,
+        );
+        self.length_assertions(
+            input_lengths.clone(),
+            target_lengths.clone(),
+            max_target_len,
         );
 
         let mut loss = burn::tensor::module::ctc_loss(
@@ -189,6 +195,41 @@ impl CTCLoss {
             }
             Reduction::Sum => ctc_loss_tensor.sum(),
             other => panic!("{other:?} reduction is not supported"),
+        }
+    }
+
+    /// Checks the per-element length invariants required by the alpha
+    /// recursion. These require reading the length tensors from the device.
+    ///
+    /// Validated:
+    /// - `target_lengths[i] <= max_target_len` (otherwise the kernels would
+    ///   read past the targets buffer)
+    /// - `target_lengths[i] >= 0`
+    /// - `input_lengths[i] >= target_lengths[i]` (otherwise no valid CTC
+    ///   alignment exists; without this check the loss silently degenerates
+    ///   to +inf, which `zero_infinity` would then mask)
+    fn length_assertions<B: Backend>(
+        &self,
+        input_lengths: Tensor<B, 1, Int>,
+        target_lengths: Tensor<B, 1, Int>,
+        max_target_len: usize,
+    ) {
+        // `iter::<i64>` handles any backend int dtype (i8/i16/i32/i64) by
+        // converting on the fly.
+        let target_lengths_data = target_lengths.into_data();
+        let input_lengths_data = input_lengths.into_data();
+        let target_iter = target_lengths_data.iter::<i64>();
+        let input_iter = input_lengths_data.iter::<i64>();
+        for (i, (tl, il)) in target_iter.zip(input_iter).enumerate() {
+            assert!(tl >= 0, "target_lengths[{i}] = {tl} must be non-negative");
+            assert!(
+                tl as usize <= max_target_len,
+                "target_lengths[{i}] = {tl} exceeds the targets tensor width {max_target_len}"
+            );
+            assert!(
+                il >= tl,
+                "input_lengths[{i}] = {il} must be >= target_lengths[{i}] = {tl} (no valid CTC alignment otherwise)"
+            );
         }
     }
 
