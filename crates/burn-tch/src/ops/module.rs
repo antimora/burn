@@ -504,6 +504,47 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
+    fn ctc_loss_backward(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        grad_loss: FloatTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        let targets_i64 = targets.tensor.to_kind(tch::Kind::Int64);
+        let input_lengths_i64 = input_lengths.tensor.to_kind(tch::Kind::Int64);
+        let target_lengths_i64 = target_lengths.tensor.to_kind(tch::Kind::Int64);
+
+        // Recompute forward to get neg_log_likelihood and log_alpha (LibTorch's
+        // backward needs both). PyTorch caches log_alpha during the autograd
+        // forward; our trait has no caching slot for it, so we redo the alpha
+        // recursion here. This is still a single-call into LibTorch's fused
+        // kernel and avoids the ~40T host-side dispatches.
+        let (neg_log_likelihood, log_alpha) = tch::Tensor::internal_ctc_loss_tensor(
+            &log_probs.tensor,
+            &targets_i64,
+            &input_lengths_i64,
+            &target_lengths_i64,
+            blank as i64,
+            false,
+        );
+
+        let grad = tch::Tensor::internal_ctc_loss_backward_tensor(
+            &grad_loss.tensor,
+            &log_probs.tensor,
+            &targets_i64,
+            &input_lengths_i64,
+            &target_lengths_i64,
+            &neg_log_likelihood,
+            &log_alpha,
+            blank as i64,
+            false,
+        );
+
+        TchTensor::new(grad)
+    }
+
     fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
         todo!("rfft is not supported for now in LibTorch")
     }

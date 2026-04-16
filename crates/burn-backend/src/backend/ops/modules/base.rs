@@ -1130,6 +1130,38 @@ pub trait ModuleOps<B: Backend> {
         ctc::ctc_loss_default::<B>(log_probs, targets, input_lengths, target_lengths, blank)
     }
 
+    /// Backward pass for [ctc_loss](ModuleOps::ctc_loss): gradient w.r.t. `log_probs`.
+    ///
+    /// # Arguments
+    ///
+    /// * `log_probs` - Log-probabilities of shape `[T, N, C]`
+    /// * `targets` - Target label indices of shape `[N, S]`
+    /// * `input_lengths` - Actual input sequence lengths per batch element `[N]`
+    /// * `target_lengths` - Actual target lengths per batch element `[N]`
+    /// * `grad_loss` - Upstream gradient w.r.t. the per-sample loss `[N]`
+    /// * `blank` - Index of the blank label
+    ///
+    /// # Returns
+    ///
+    /// Gradient w.r.t. `log_probs` of shape `[T, N, C]`
+    fn ctc_loss_backward(
+        log_probs: FloatTensor<B>,
+        targets: IntTensor<B>,
+        input_lengths: IntTensor<B>,
+        target_lengths: IntTensor<B>,
+        grad_loss: FloatTensor<B>,
+        blank: usize,
+    ) -> FloatTensor<B> {
+        ctc::ctc_loss_backward_default::<B>(
+            log_probs,
+            targets,
+            input_lengths,
+            target_lengths,
+            grad_loss,
+            blank,
+        )
+    }
+
     /// Real-valued fast Fourier transform.
     ///
     /// Computes the discrete Fourier transform of a real-valued input along the given dimension.
