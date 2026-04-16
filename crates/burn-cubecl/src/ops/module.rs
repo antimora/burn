@@ -341,6 +341,34 @@ where
         .expect("Kernel to never fail")
     }
 
+    fn ctc_loss(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        // Try the fused single-cube kernel first; it returns None when the
+        // modified label sequence exceeds the per-cube thread limit, in which
+        // case we fall back to the default decomposed implementation.
+        match kernel::ctc::ctc_loss(
+            log_probs.clone(),
+            targets.clone(),
+            input_lengths.clone(),
+            target_lengths.clone(),
+            blank,
+        ) {
+            Some(out) => out,
+            None => burn_backend::ops::ctc::ctc_loss_default::<Self>(
+                log_probs,
+                targets,
+                input_lengths,
+                target_lengths,
+                blank,
+            ),
+        }
+    }
+
     fn rfft(signal: FloatTensor<Self>, dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
         kernel::fft::rfft(signal, dim)
     }
