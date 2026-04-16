@@ -17,12 +17,14 @@ fn expand_2d_bool() {
 
 #[test]
 fn expand_bool_after_flip() {
-    let tensor = TestTensorBool::<1>::from([true, false, true]).flip([0]);
+    // Non-palindromic input so the flip actually changes the data:
+    // [true, false, false] flipped -> [false, false, true].
+    let tensor = TestTensorBool::<1>::from([true, false, false]).flip([0]);
 
     let output = tensor.expand([2, 3]);
 
     output.into_data().assert_eq(
-        &TensorData::from([[true, false, true], [true, false, true]]),
+        &TensorData::from([[false, false, true], [false, false, true]]),
         false,
     );
 }
