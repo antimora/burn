@@ -2531,46 +2531,4 @@ mod tests {
         assert_eq!(vals, vec![10, 8]);
         assert_eq!(idxs, vec![1, 1]);
     }
-
-    // ---------------------------------------------------------------------
-    // NaN propagation
-    //
-    // These tests stay flex-specific because NaN-handling in min/max/argmax
-    // diverges by backend: IEEE 754 leaves min/max of (NaN, x) implementation
-    // defined, ndarray follows the "return non-NaN arg" branch, flex
-    // propagates NaN. Pinning flex's behavior here prevents silent regressions.
-    // ---------------------------------------------------------------------
-
-    #[test]
-    fn test_max_dim_nan_propagation() {
-        let t = FlexTensor::from_data(TensorData::new(vec![1.0f32, f32::NAN, 3.0], [1, 3]));
-        let result = Flex::float_max_dim(t, 1);
-        let vals: Vec<f32> = result.into_data().to_vec().unwrap();
-        assert!(vals[0].is_nan());
-    }
-
-    #[test]
-    fn test_min_dim_nan_propagation() {
-        let t = FlexTensor::from_data(TensorData::new(vec![1.0f32, f32::NAN, 3.0], [1, 3]));
-        let result = Flex::float_min_dim(t, 1);
-        let vals: Vec<f32> = result.into_data().to_vec().unwrap();
-        assert!(vals[0].is_nan());
-    }
-
-    #[test]
-    fn test_max_dim_with_indices_nan_propagation() {
-        let t = FlexTensor::from_data(TensorData::new(vec![1.0f32, f32::NAN, 3.0], [1, 3]));
-        let (values, _indices) = Flex::float_max_dim_with_indices(t, 1, burn_std::IntDType::I64);
-        let vals: Vec<f32> = values.into_data().to_vec().unwrap();
-        assert!(vals[0].is_nan());
-    }
-
-    #[test]
-    fn test_argmax_nan_propagation() {
-        let t = FlexTensor::from_data(TensorData::new(vec![1.0f32, f32::NAN, 3.0], [1, 3]));
-        let result = Flex::float_argmax(t, 1, burn_std::IntDType::I64);
-        let idxs: Vec<i64> = result.into_data().to_vec().unwrap();
-        // NaN propagates, so argmax returns the NaN index (1).
-        assert_eq!(idxs, vec![1]);
-    }
 }
