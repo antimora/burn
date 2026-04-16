@@ -170,9 +170,10 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     // Reduce: only thread 0 writes the output for this batch element.
     if UNIT_POS_X == 0 {
         let last_blank = alpha[2 * target_len];
-        // Guard target_len = 0: index 2*0 - 1 underflows. Pick last_blank itself
-        // so log_sum_exp reduces to just last_blank.
-        let mut last_label = last_blank;
+        // Guard target_len = 0: index 2*0 - 1 underflows. Use -inf so
+        // log_sum_exp(last_blank, -inf) = last_blank (log_sum_exp(x, x) = x+ln2
+        // would be wrong here).
+        let mut last_label = neg_inf;
         if target_len > 0 {
             last_label = alpha[2 * target_len - 1];
         }
@@ -398,7 +399,8 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
 
     if UNIT_POS_X == 0 {
         let last_blank = state[2 * target_len];
-        let mut last_label = last_blank;
+        // See ctc_loss_kernel: -inf sentinel keeps log_sum_exp correct for target_len = 0.
+        let mut last_label = neg_inf;
         if target_len > 0 {
             last_label = state[2 * target_len - 1];
         }

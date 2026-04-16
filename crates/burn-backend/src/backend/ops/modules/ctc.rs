@@ -164,6 +164,14 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     );
     let log_probs_at_l = B::float_gather(2, log_probs.clone(), indices_3d.clone());
 
+    // Samples with an unreachable target yield nll = +inf. For those, log_alpha
+    // stays at -inf at many (t, s) while log_beta is finite at the boundary, so
+    // log_post = (-inf) + finite - finite + (+inf) = NaN and -exp(NaN) = NaN
+    // contaminates the gradient. `NaN * 0 = NaN` under IEEE 754, so zero_infinity
+    // masking on the outer grad_loss can't clear it. Capture the mask now and
+    // zero the gradient for those samples at the end.
+    let nll_is_inf = B::float_is_inf(nll.clone(), settings.bool_dtype);
+
     let nll_b = B::float_reshape(nll, Shape::new([1, batch_size, 1]));
     let nll_b = B::float_expand(
         nll_b,
@@ -211,7 +219,16 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
         Shape::new([max_input_length, batch_size, num_classes]),
     );
     let oob_mask = B::int_greater_equal(t_indices, il_b, settings.bool_dtype);
-    B::float_mask_fill(grad, oob_mask, 0.0.into())
+
+    // Broadcast the nll-is-inf mask across [T, N, C] and OR with oob_mask so a
+    // single mask_fill zeros both unreachable samples and out-of-bound timesteps.
+    let nll_inf_b = B::bool_reshape(nll_is_inf, Shape::new([1, batch_size, 1]));
+    let nll_inf_b = B::bool_expand(
+        nll_inf_b,
+        Shape::new([max_input_length, batch_size, num_classes]),
+    );
+    let mask = B::bool_or(oob_mask, nll_inf_b);
+    B::float_mask_fill(grad, mask, 0.0.into())
 }
 
 /// Cached state from the alpha recursion, shared between `ctc_loss_default` and
@@ -670,6 +687,17 @@ fn right_shift<B: Backend>(
     device: &B::Device,
     float_dtype: burn_std::FloatDType,
 ) -> FloatTensor<B> {
+    // Shifting by more than the column count pushes every data slot off the
+    // right. Short-circuit to avoid a `cols - shift` usize underflow when
+    // `max_target_len == 0` (so `max_l_prime_len == 1`).
+    if cols < shift {
+        return B::float_full(
+            Shape::new([batch_size, cols]),
+            f32::NEG_INFINITY.into(),
+            device,
+            float_dtype,
+        );
+    }
     let padding = B::float_full(
         Shape::new([batch_size, shift]),
         f32::NEG_INFINITY.into(),
@@ -692,11 +720,21 @@ fn right_shift<B: Backend>(
 fn left_shift<B: Backend>(
     tensor: &FloatTensor<B>,
     batch_size: usize,
-    _cols: usize,
+    cols: usize,
     shift: usize,
     device: &B::Device,
     float_dtype: burn_std::FloatDType,
 ) -> FloatTensor<B> {
+    // Same empty-target guard as `right_shift`: if the shift consumes the whole
+    // width, the slice at `shift..` would be out of bounds on some backends.
+    if cols < shift {
+        return B::float_full(
+            Shape::new([batch_size, cols]),
+            f32::NEG_INFINITY.into(),
+            device,
+            float_dtype,
+        );
+    }
     let padding = B::float_full(
         Shape::new([batch_size, shift]),
         f32::NEG_INFINITY.into(),
@@ -752,6 +790,16 @@ fn create_l_prime_mask<B: Backend>(
     int_dtype: burn_std::IntDType,
     bool_dtype: burn_std::BoolDType,
 ) -> <B as Backend>::BoolTensorPrimitive {
+    // The mask requires `s >= 2`, which is unsatisfiable when max_l_prime_len < 2
+    // (i.e. targets have shape [N, 0]). Bail out before the `max_l_prime_len - 2`
+    // usize subtraction underflows.
+    if max_l_prime_len < 2 {
+        return B::bool_zeros(
+            Shape::new([batch_size, max_l_prime_len]),
+            device,
+            bool_dtype,
+        );
+    }
     let l_prime = blank_inserted_targets.clone();
 
     let not_blank = B::int_not_equal_elem(l_prime.clone(), (blank as i64).into(), bool_dtype);
@@ -792,6 +840,15 @@ fn create_l_prime_skip_forward_mask<B: Backend>(
     int_dtype: burn_std::IntDType,
     bool_dtype: burn_std::BoolDType,
 ) -> <B as Backend>::BoolTensorPrimitive {
+    // No `s + 2 < L'` position exists when L' < 2, so the skip mask is
+    // unconditionally false. Also avoids underflow in the `L' - 2` slice below.
+    if max_l_prime_len < 2 {
+        return B::bool_zeros(
+            Shape::new([batch_size, max_l_prime_len]),
+            device,
+            bool_dtype,
+        );
+    }
     let l_prime = blank_inserted_targets.clone();
 
     // l'[s+2]: left-shift l' by 2 positions, padding the last two with `l'[s]` so
