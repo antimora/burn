@@ -63,7 +63,10 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     // batches in the t-loop (a thread writing alpha[s] races with another
     // thread still reading alpha[s-1] or alpha[s-2] for its own s).
     let mut alpha = SharedMemory::<F>::new(2 * alpha_cap);
-    let neg_inf = F::new(f32::NEG_INFINITY);
+    // f32::NEG_INFINITY via F::new emits `f32(-inf)` in WGSL which is not a
+    // valid identifier there; use a finite sentinel that is small enough that
+    // `exp(x - neg_inf)` underflows to 0 for any real log-prob `x`.
+    let neg_inf = F::new(-1.0e30_f32);
     let one = F::new(1.0);
 
     // Initialize alpha at t = 0. Each thread strides over its assigned s positions.
@@ -176,13 +179,17 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
             mx = last_label;
             mn = last_blank;
         }
-        let log_lik = if mx == neg_inf {
-            mx
+        // When the sentinel dominates, the target is unreachable - emit a
+        // true +inf via exp() overflow so downstream `is_inf` checks fire.
+        // Building it arithmetically from a runtime-dependent value also
+        // keeps WGSL's comptime-overflow validator happy.
+        output[n] = if mx == neg_inf {
+            // Use a runtime-dependent value so WGSL can't fold at comptime
+            // and reject as overflow. `input_len >= 1` is guaranteed here.
+            (F::new(1000.0_f32) * F::cast_from(input_len as u32)).exp()
         } else {
-            mx + (one + (mn - mx).exp()).ln()
+            F::new(0.0) - (mx + (one + (mn - mx).exp()).ln())
         };
-
-        output[n] = F::new(0.0) - log_lik;
     }
 }
 
@@ -310,7 +317,10 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     // residual alpha values sitting in the active row between phases are never
     // observed by beta (its boundary init overwrites every slot it reads).
     let mut state = SharedMemory::<F>::new(2 * alpha_cap);
-    let neg_inf = F::new(f32::NEG_INFINITY);
+    // f32::NEG_INFINITY via F::new emits `f32(-inf)` in WGSL which is not a
+    // valid identifier there; use a finite sentinel that is small enough that
+    // `exp(x - neg_inf)` underflows to 0 for any real log-prob `x`.
+    let neg_inf = F::new(-1.0e30_f32);
     let one = F::new(1.0);
 
     // Mirrors ctc_loss_kernel: with input_len == 0 the t = 0 init would read
@@ -425,12 +435,13 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
             mx = last_label;
             mn = last_blank;
         }
-        let log_lik = if mx == neg_inf {
-            mx
+        // See ctc_loss_kernel: emit true +inf via exp() overflow when the
+        // sentinel dominates, so downstream `is_inf` checks fire.
+        nll_out[n] = if mx == neg_inf {
+            (F::new(1000.0_f32) * F::cast_from(input_len as u32)).exp()
         } else {
-            mx + (one + (mn - mx).exp()).ln()
+            F::new(0.0) - (mx + (one + (mn - mx).exp()).ln())
         };
-        nll_out[n] = F::new(0.0) - log_lik;
     }
 
     // Fence thread 0's read of state[2*target_len] / state[2*target_len - 1]
