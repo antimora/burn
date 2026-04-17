@@ -825,20 +825,31 @@ fn log_sum_exp<B: Backend>(
     b: FloatTensor<B>,
     bool_dtype: burn_std::BoolDType,
 ) -> FloatTensor<B> {
-    // -|a - b|. NaN iff both are -inf (or inf), non-positive otherwise.
-    let neg_abs_diff = B::float_neg(B::float_abs(B::float_sub(a.clone(), b.clone())));
+    // `-inf` values in `a` or `b` would make `a - b` evaluate to `NaN`
+    // (when both are `-inf`) and the backward pass through that `NaN`
+    // intermediate propagates `NaN` into the gradient even when the
+    // forward mask discards it (`0 * NaN = NaN` in IEEE). Clamp `-inf`
+    // to `0` on safe copies used only for the diff computation; compute
+    // `max` on the original values so its output is correct in the
+    // `-inf` cases.
+    let a_is_neg_inf = B::float_equal_elem(a.clone(), f32::NEG_INFINITY.into(), bool_dtype);
+    let b_is_neg_inf = B::float_equal_elem(b.clone(), f32::NEG_INFINITY.into(), bool_dtype);
+    let either_neg_inf = B::bool_or(a_is_neg_inf.clone(), b_is_neg_inf.clone());
 
-    // max(a, b): where a < b, take b; else take a.
+    let a_safe = B::float_mask_fill(a.clone(), a_is_neg_inf, 0.0.into());
+    let b_safe = B::float_mask_fill(b.clone(), b_is_neg_inf, 0.0.into());
+
     let lt_mask = B::float_lower(a.clone(), b.clone(), bool_dtype);
     let mx = B::float_mask_where(a, lt_mask, b);
 
-    // Prevent NaN from the "both -inf" case: force the diff to 0 there.
-    // log1p(exp(0)) = ln(2), and (-inf) + ln(2) = -inf, so the final sum
-    // stays -inf as expected.
-    let mx_is_neg_inf = B::float_equal_elem(mx.clone(), f32::NEG_INFINITY.into(), bool_dtype);
-    let safe_diff = B::float_mask_fill(neg_abs_diff, mx_is_neg_inf, 0.0.into());
+    // diff_safe = -|a_safe - b_safe|. Finite by construction. When either
+    // input was `-inf`, force it to `-inf` so `exp(diff) == 0` and the
+    // `log1p` term contributes nothing (`result = mx`). When both were
+    // `-inf`, `mx = -inf` so `result = -inf + 0 = -inf`.
+    let diff_safe = B::float_neg(B::float_abs(B::float_sub(a_safe, b_safe)));
+    let diff_final = B::float_mask_fill(diff_safe, either_neg_inf, f32::NEG_INFINITY.into());
 
-    B::float_add(mx, B::float_log1p(B::float_exp(safe_diff)))
+    B::float_add(mx, B::float_log1p(B::float_exp(diff_final)))
 }
 
 /// Mask for the alpha skip transition: `l'[s] != blank AND l'[s] != l'[s-2] AND s >= 2`.
