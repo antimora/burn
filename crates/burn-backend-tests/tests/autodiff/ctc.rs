@@ -611,8 +611,7 @@ fn test_ctc_loss_grad_swap_dims_then_narrow() {
     let targets_a = TestTensorInt::<2>::from_data(TensorData::from([[1_i64, 2], [2, 3]]), &device);
     let input_lengths_a =
         TestTensorInt::<1>::from_data(TensorData::from([t_eff as i64, t_eff as i64]), &device);
-    let target_lengths_a =
-        TestTensorInt::<1>::from_data(TensorData::from([2_i64, 2]), &device);
+    let target_lengths_a = TestTensorInt::<1>::from_data(TensorData::from([2_i64, 2]), &device);
 
     let loss_a = ctc_loss(log_probs_a, targets_a, input_lengths_a, target_lengths_a, 0).sum();
     let grads_a = loss_a.backward();
@@ -637,8 +636,7 @@ fn test_ctc_loss_grad_swap_dims_then_narrow() {
     let targets_b = TestTensorInt::<2>::from_data(TensorData::from([[1_i64, 2], [2, 3]]), &device);
     let input_lengths_b =
         TestTensorInt::<1>::from_data(TensorData::from([t_eff as i64, t_eff as i64]), &device);
-    let target_lengths_b =
-        TestTensorInt::<1>::from_data(TensorData::from([2_i64, 2]), &device);
+    let target_lengths_b = TestTensorInt::<1>::from_data(TensorData::from([2_i64, 2]), &device);
 
     let loss_b = ctc_loss(log_probs_b, targets_b, input_lengths_b, target_lengths_b, 0).sum();
     let grads_b = loss_b.backward();
@@ -708,12 +706,14 @@ fn test_ctc_loss_scaled_swap_dims_then_narrow_autodiff() {
         TestTensorInt::<2>::from_data(TensorData::new(targets_data.clone(), [b, 64]), &device);
     let input_lengths_a =
         TestTensorInt::<1>::from_data(TensorData::from([t_eff as i64, t_eff as i64]), &device);
-    let target_lengths_a =
-        TestTensorInt::<1>::from_data(TensorData::from([64_i64, 43]), &device);
+    let target_lengths_a = TestTensorInt::<1>::from_data(TensorData::from([64_i64, 43]), &device);
 
-    let loss_a_per_sample =
-        ctc_loss(log_probs_a, targets_a, input_lengths_a, target_lengths_a, 0);
-    let loss_a_vec: Vec<f32> = loss_a_per_sample.clone().into_data().iter::<f32>().collect();
+    let loss_a_per_sample = ctc_loss(log_probs_a, targets_a, input_lengths_a, target_lengths_a, 0);
+    let loss_a_vec: Vec<f32> = loss_a_per_sample
+        .clone()
+        .into_data()
+        .iter::<f32>()
+        .collect();
 
     // Path B: build the equivalent contiguous [T, B, C] layout up front.
     let mut data_tbc = Vec::with_capacity(t_full * b * c);
@@ -728,15 +728,12 @@ fn test_ctc_loss_scaled_swap_dims_then_narrow_autodiff() {
         TestTensor::<3>::from_data(TensorData::new(data_tbc, [t_full, b, c]), &device);
     let log_probs_b = log_softmax(logits_tbc_b, 2).narrow(0, warmup, t_eff);
 
-    let targets_b =
-        TestTensorInt::<2>::from_data(TensorData::new(targets_data, [b, 64]), &device);
+    let targets_b = TestTensorInt::<2>::from_data(TensorData::new(targets_data, [b, 64]), &device);
     let input_lengths_b =
         TestTensorInt::<1>::from_data(TensorData::from([t_eff as i64, t_eff as i64]), &device);
-    let target_lengths_b =
-        TestTensorInt::<1>::from_data(TensorData::from([64_i64, 43]), &device);
+    let target_lengths_b = TestTensorInt::<1>::from_data(TensorData::from([64_i64, 43]), &device);
 
-    let loss_b_per_sample =
-        ctc_loss(log_probs_b, targets_b, input_lengths_b, target_lengths_b, 0);
+    let loss_b_per_sample = ctc_loss(log_probs_b, targets_b, input_lengths_b, target_lengths_b, 0);
     let loss_b_vec: Vec<f32> = loss_b_per_sample.into_data().iter::<f32>().collect();
 
     for i in 0..b {

@@ -374,4 +374,3 @@ fn test_ctc_loss_matches_pytorch() {
     loss.into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(1e-3, 1e-3));
 }
-
