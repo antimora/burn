@@ -240,6 +240,10 @@ struct AlphaCtx<B: Backend> {
     last: FloatTensor<B>,
     /// `l'` after blank insertion `[N, 2S+1]`.
     blank_inserted_targets: IntTensor<B>,
+    /// `log_probs[t, n, l'[n, s]]` pre-gathered as `[T, N, 2S+1]`. Reused
+    /// across the alpha recursion, the beta recursion, and the gradient
+    /// composition so the expensive gather runs exactly once.
+    log_probs_at_l_full: FloatTensor<B>,
     max_l_prime_len: usize,
 }
 
@@ -348,6 +352,31 @@ impl<B: Backend> AlphaCtx<B> {
             settings.bool_dtype,
         );
 
+        // Hoist out of the T-loop: padding tensors for right_shift (same
+        // value/shape at every iteration) and the full `[T, N, 2S+1]`
+        // gather of log_probs at l' (one T-sized gather replaces T small
+        // gathers).
+        let pad_1 = B::float_full(
+            Shape::new([batch_size, 1]),
+            f32::NEG_INFINITY.into(),
+            &device,
+            float_dtype,
+        );
+        let pad_2 = B::float_full(
+            Shape::new([batch_size, 2]),
+            f32::NEG_INFINITY.into(),
+            &device,
+            float_dtype,
+        );
+        let indices_3d = B::int_expand(
+            B::int_reshape(
+                blank_inserted_targets.clone(),
+                Shape::new([1, batch_size, max_l_prime_len]),
+            ),
+            Shape::new([max_input_length, batch_size, max_l_prime_len]),
+        );
+        let log_probs_at_l_full = B::float_gather(2, log_probs.clone(), indices_3d);
+
         for t in 1..max_input_length {
             let t_mask_1d = B::int_greater_elem(
                 input_lengths.clone(),
@@ -361,37 +390,25 @@ impl<B: Backend> AlphaCtx<B> {
             let combined_mask = B::bool_and(t_mask, s_mask.clone());
 
             let log_alpha_s = log_alpha.clone();
-            let log_alpha_s_m1 = right_shift::<B>(
-                &log_alpha,
-                batch_size,
-                max_l_prime_len,
-                1,
-                &device,
-                float_dtype,
-            );
-            let log_alpha_s_m2 = right_shift::<B>(
-                &log_alpha,
-                batch_size,
-                max_l_prime_len,
-                2,
-                &device,
-                float_dtype,
-            );
+            let log_alpha_s_m1 = right_shift::<B>(&log_alpha, &pad_1, max_l_prime_len, 1);
+            let log_alpha_s_m2 = right_shift::<B>(&log_alpha, &pad_2, max_l_prime_len, 2);
 
             let bar = log_sum_exp::<B>(log_alpha_s, log_alpha_s_m1, settings.bool_dtype);
             let bar_with_skip = log_sum_exp::<B>(bar.clone(), log_alpha_s_m2, settings.bool_dtype);
             let log_alpha_combined = B::float_mask_where(bar, l_prime_mask.clone(), bar_with_skip);
 
-            let log_probs_t = B::float_slice(
-                log_probs.clone(),
-                &[
-                    Slice::new(t as isize, Some(t as isize + 1), 1),
-                    Slice::full(),
-                    Slice::full(),
-                ],
+            // Slice row t from the pre-gathered `[T, N, 2S+1]` tensor.
+            let log_probs_at_l = B::float_reshape(
+                B::float_slice(
+                    log_probs_at_l_full.clone(),
+                    &[
+                        Slice::new(t as isize, Some(t as isize + 1), 1),
+                        Slice::full(),
+                        Slice::full(),
+                    ],
+                ),
+                Shape::new([batch_size, max_l_prime_len]),
             );
-            let log_probs_t = B::float_reshape(log_probs_t, Shape::new([batch_size, num_classes]));
-            let log_probs_at_l = B::float_gather(1, log_probs_t, blank_inserted_targets.clone());
             let new_alpha = B::float_add(log_alpha_combined, log_probs_at_l);
             log_alpha = B::float_mask_where(log_alpha, combined_mask, new_alpha);
 
@@ -414,6 +431,7 @@ impl<B: Backend> AlphaCtx<B> {
             full: alpha_full,
             last: log_alpha,
             blank_inserted_targets,
+            log_probs_at_l_full,
             max_l_prime_len,
         }
     }
@@ -463,7 +481,7 @@ fn compute_log_beta_full<B: Backend>(
     target_lengths: IntTensor<B>,
 ) -> FloatTensor<B> {
     let log_probs_shape = log_probs.shape();
-    let [max_input_length, batch_size, num_classes] = log_probs_shape.dims::<3>();
+    let [max_input_length, batch_size, _num_classes] = log_probs_shape.dims::<3>();
     let max_l_prime_len = alpha.max_l_prime_len;
     let device = B::float_device(&log_probs);
     let float_dtype: burn_std::FloatDType = log_probs.dtype().into();
@@ -547,35 +565,75 @@ fn compute_log_beta_full<B: Backend>(
         settings.bool_dtype,
     );
 
+    // Hoist out of the T-loop: padding tensors for left_shift, the full
+    // `[T, N, 2S+1]` gather of log_probs at l' (one big gather replaces T
+    // small ones), and per-t boundary/validity masks built once as
+    // `[T, N]` bool tensors and sliced per iteration.
+    let pad_1 = B::float_full(
+        Shape::new([batch_size, 1]),
+        f32::NEG_INFINITY.into(),
+        &device,
+        float_dtype,
+    );
+    let pad_2 = B::float_full(
+        Shape::new([batch_size, 2]),
+        f32::NEG_INFINITY.into(),
+        &device,
+        float_dtype,
+    );
+    // Reuse the [T, N, 2S+1] gather computed once in AlphaCtx::compute.
+    let log_probs_at_l_full = alpha.log_probs_at_l_full.clone();
+
+    // `t_indices`: [T, 1]. `input_lengths`: [1, N]. Broadcast to [T, N].
+    let t_indices_all = B::int_reshape(
+        B::int_arange(0..max_input_length as i64, &device, settings.int_dtype),
+        Shape::new([max_input_length, 1]),
+    );
+    let t_indices_all = B::int_expand(t_indices_all, Shape::new([max_input_length, batch_size]));
+    let il_2d = B::int_expand(
+        B::int_reshape(input_lengths.clone(), Shape::new([1, batch_size])),
+        Shape::new([max_input_length, batch_size]),
+    );
+    // boundary_t_all[t, n] = (t == input_lengths[n] - 1), via t + 1 == il.
+    let t_plus_one = B::int_add_scalar(t_indices_all.clone(), 1.into());
+    let boundary_t_all = B::int_equal(t_plus_one, il_2d.clone(), settings.bool_dtype);
+    let t_valid_all = B::int_greater(il_2d, t_indices_all, settings.bool_dtype);
+
     for t_rev in 0..max_input_length {
         let t = max_input_length - 1 - t_rev;
 
-        // log_probs[t, :, :] -> [N, C]
-        let log_probs_t = B::float_slice(
-            log_probs.clone(),
-            &[
-                Slice::new(t as isize, Some(t as isize + 1), 1),
-                Slice::full(),
-                Slice::full(),
-            ],
+        // Slice log_probs[t, n, l'[s]] = [N, 2S+1] from the pre-gathered tensor.
+        let log_probs_at_l = B::float_reshape(
+            B::float_slice(
+                log_probs_at_l_full.clone(),
+                &[
+                    Slice::new(t as isize, Some(t as isize + 1), 1),
+                    Slice::full(),
+                    Slice::full(),
+                ],
+            ),
+            Shape::new([batch_size, max_l_prime_len]),
         );
-        let log_probs_t = B::float_reshape(log_probs_t, Shape::new([batch_size, num_classes]));
-        let log_probs_at_l = B::float_gather(1, log_probs_t, blank_inserted_targets.clone()); // [N, 2S+1]
 
-        // Detect boundary: input_length[n] - 1 == t (per-batch).
-        let boundary_t_1d = B::int_equal_elem(
-            B::int_sub_scalar(input_lengths.clone(), 1.into()),
-            (t as i64).into(),
-            settings.bool_dtype,
+        // Slice the hoisted [T, N] bool masks for this timestep.
+        let boundary_t_1d = B::bool_reshape(
+            B::bool_slice(
+                boundary_t_all.clone(),
+                &[
+                    Slice::new(t as isize, Some(t as isize + 1), 1),
+                    Slice::full(),
+                ],
+            ),
+            Shape::new([batch_size]),
         );
         let boundary_t = B::bool_expand(
-            B::bool_reshape(boundary_t_1d.clone(), Shape::new([batch_size, 1])),
+            B::bool_reshape(boundary_t_1d, Shape::new([batch_size, 1])),
             Shape::new([batch_size, max_l_prime_len]),
         );
 
         // Boundary initialization: where t == input_length - 1 AND s in {2U, 2U-1},
         // set beta[t, n, s] = log_probs[t, n, l'[s]]. Elsewhere zero.
-        let boundary_init_mask = B::bool_and(boundary_t.clone(), is_boundary.clone());
+        let boundary_init_mask = B::bool_and(boundary_t, is_boundary.clone());
         let boundary_init = B::float_mask_fill(
             log_probs_at_l.clone(),
             B::bool_not(boundary_init_mask.clone()),
@@ -586,22 +644,8 @@ fn compute_log_beta_full<B: Backend>(
         // Only valid where t < input_length - 1 (beta from the future).
         // Compute log_sum_exp(beta[t+1, s], beta[t+1, s+1], beta[t+1, s+2] if skip).
         let beta_s = log_beta.clone();
-        let beta_s_p1 = left_shift::<B>(
-            &log_beta,
-            batch_size,
-            max_l_prime_len,
-            1,
-            &device,
-            float_dtype,
-        );
-        let beta_s_p2 = left_shift::<B>(
-            &log_beta,
-            batch_size,
-            max_l_prime_len,
-            2,
-            &device,
-            float_dtype,
-        );
+        let beta_s_p1 = left_shift::<B>(&log_beta, &pad_1, max_l_prime_len, 1);
+        let beta_s_p2 = left_shift::<B>(&log_beta, &pad_2, max_l_prime_len, 2);
         let bar = log_sum_exp::<B>(beta_s, beta_s_p1, settings.bool_dtype);
         let bar_with_skip = log_sum_exp::<B>(bar.clone(), beta_s_p2, settings.bool_dtype);
         let bar_combined = B::float_mask_where(bar, l_prime_mask_skip.clone(), bar_with_skip);
@@ -617,11 +661,16 @@ fn compute_log_beta_full<B: Backend>(
             B::bool_not(s_mask.clone()),
             f32::NEG_INFINITY.into(),
         );
-        // Mask out t positions beyond input_length.
-        let t_valid_1d = B::int_greater_elem(
-            input_lengths.clone(),
-            (t as i64).into(),
-            settings.bool_dtype,
+        // Mask out t positions beyond input_length (hoisted slice).
+        let t_valid_1d = B::bool_reshape(
+            B::bool_slice(
+                t_valid_all.clone(),
+                &[
+                    Slice::new(t as isize, Some(t as isize + 1), 1),
+                    Slice::full(),
+                ],
+            ),
+            Shape::new([batch_size]),
         );
         let t_valid = B::bool_expand(
             B::bool_reshape(t_valid_1d, Shape::new([batch_size, 1])),
@@ -677,33 +726,28 @@ fn insert_blanks<B: Backend>(
     )
 }
 
-/// Right-shift a 2D float tensor by `shift` positions, filling the leading
-/// columns with `f32::NEG_INFINITY` cast to the requested float dtype.
+/// Right-shift a 2D float tensor by `shift` positions, prepending the
+/// pre-allocated `padding` tensor (shape `[batch_size, shift]`, value
+/// `-inf`) instead of materializing it each call.
+///
+/// Called inside the T-loop of the alpha recursion; hoisting the padding
+/// out of the loop eliminates `O(T)` `float_full` allocations.
 fn right_shift<B: Backend>(
     tensor: &FloatTensor<B>,
-    batch_size: usize,
+    padding: &FloatTensor<B>,
     cols: usize,
     shift: usize,
-    device: &B::Device,
-    float_dtype: burn_std::FloatDType,
 ) -> FloatTensor<B> {
     // Shifting by more than the column count pushes every data slot off the
-    // right. Short-circuit to avoid a `cols - shift` usize underflow when
-    // `max_target_len == 0` (so `max_l_prime_len == 1`).
+    // right. Avoid the `cols - shift` usize underflow when
+    // `max_target_len == 0` (so `max_l_prime_len == 1`) by slicing the
+    // padding itself - it's already an all-`-inf` tensor of the right shape.
     if cols < shift {
-        return B::float_full(
-            Shape::new([batch_size, cols]),
-            f32::NEG_INFINITY.into(),
-            device,
-            float_dtype,
+        return B::float_slice(
+            padding.clone(),
+            &[Slice::full(), Slice::new(0, Some(cols as isize), 1)],
         );
     }
-    let padding = B::float_full(
-        Shape::new([batch_size, shift]),
-        f32::NEG_INFINITY.into(),
-        device,
-        float_dtype,
-    );
     let shortened = B::float_slice(
         tensor.clone(),
         &[
@@ -711,44 +755,38 @@ fn right_shift<B: Backend>(
             Slice::new(0, Some((cols - shift) as isize), 1),
         ],
     );
-    B::float_cat(alloc::vec![padding, shortened], 1)
+    B::float_cat(alloc::vec![padding.clone(), shortened], 1)
 }
 
-/// Left-shift a 2D float tensor by `shift` positions, filling the trailing
-/// columns with `f32::NEG_INFINITY` cast to the requested float dtype.
-/// Used by the beta recursion to read `beta[t+1, s+1]` and `beta[t+1, s+2]`.
+/// Left-shift a 2D float tensor by `shift` positions, appending the
+/// pre-allocated `padding` tensor (shape `[batch_size, shift]`, value
+/// `-inf`). Mirror of `right_shift` for the beta recursion.
 fn left_shift<B: Backend>(
     tensor: &FloatTensor<B>,
-    batch_size: usize,
+    padding: &FloatTensor<B>,
     cols: usize,
     shift: usize,
-    device: &B::Device,
-    float_dtype: burn_std::FloatDType,
 ) -> FloatTensor<B> {
-    // Same empty-target guard as `right_shift`: if the shift consumes the whole
-    // width, the slice at `shift..` would be out of bounds on some backends.
+    // Same degenerate-case guard as right_shift.
     if cols < shift {
-        return B::float_full(
-            Shape::new([batch_size, cols]),
-            f32::NEG_INFINITY.into(),
-            device,
-            float_dtype,
+        return B::float_slice(
+            padding.clone(),
+            &[Slice::full(), Slice::new(0, Some(cols as isize), 1)],
         );
     }
-    let padding = B::float_full(
-        Shape::new([batch_size, shift]),
-        f32::NEG_INFINITY.into(),
-        device,
-        float_dtype,
-    );
     let shortened = B::float_slice(
         tensor.clone(),
         &[Slice::full(), Slice::new(shift as isize, None, 1)],
     );
-    B::float_cat(alloc::vec![shortened, padding], 1)
+    B::float_cat(alloc::vec![shortened, padding.clone()], 1)
 }
 
 /// Compute log(exp(a) + exp(b)) in a numerically stable way.
+///
+/// `log_sum_exp(a, b) = max(a, b) + log1p(exp(-|a - b|))`. The only edge
+/// case is `a = b = -inf`, where `-|(-inf) - (-inf)| = NaN`. We detect
+/// `max == -inf` and substitute `0` for the diff there; the final sum
+/// stays `-inf` because `-inf + log(2) = -inf`.
 ///
 /// Handles -inf correctly and is safe for gradient computation:
 /// - Both -inf: returns -inf
@@ -759,25 +797,20 @@ fn log_sum_exp<B: Backend>(
     b: FloatTensor<B>,
     bool_dtype: burn_std::BoolDType,
 ) -> FloatTensor<B> {
-    let a_is_neg_inf = B::float_equal_elem(a.clone(), f32::NEG_INFINITY.into(), bool_dtype);
-    let b_is_neg_inf = B::float_equal_elem(b.clone(), f32::NEG_INFINITY.into(), bool_dtype);
+    // -|a - b|. NaN iff both are -inf (or inf), non-positive otherwise.
+    let neg_abs_diff = B::float_neg(B::float_abs(B::float_sub(a.clone(), b.clone())));
 
-    let ones = B::float_ones(a.shape(), &B::float_device(&a), a.dtype().into());
-    let fallback = B::float_mask_where(ones.clone(), a_is_neg_inf.clone(), b.clone());
-    let fallback = B::float_mask_where(fallback, b_is_neg_inf.clone(), a.clone());
+    // max(a, b): where a < b, take b; else take a.
+    let lt_mask = B::float_lower(a.clone(), b.clone(), bool_dtype);
+    let mx = B::float_mask_where(a, lt_mask, b);
 
-    let a_safe = B::float_mask_fill(a, a_is_neg_inf.clone(), 0.0.into());
-    let b_safe = B::float_mask_fill(b, b_is_neg_inf.clone(), 0.0.into());
+    // Prevent NaN from the "both -inf" case: force the diff to 0 there.
+    // log1p(exp(0)) = ln(2), and (-inf) + ln(2) = -inf, so the final sum
+    // stays -inf as expected.
+    let mx_is_neg_inf = B::float_equal_elem(mx.clone(), f32::NEG_INFINITY.into(), bool_dtype);
+    let safe_diff = B::float_mask_fill(neg_abs_diff, mx_is_neg_inf, 0.0.into());
 
-    let lt_mask = B::float_lower(a_safe.clone(), b_safe.clone(), bool_dtype);
-    let max_val = B::float_mask_where(a_safe.clone(), lt_mask, b_safe.clone());
-    let diff = B::float_sub(a_safe, b_safe);
-    let exp_neg_abs_diff = B::float_exp(B::float_neg(B::float_abs(diff)));
-    let lse = B::float_add(max_val, B::float_log(B::float_add(ones, exp_neg_abs_diff)));
-
-    let either_inf = B::bool_or(a_is_neg_inf, b_is_neg_inf);
-    let neither_inf = B::bool_not(either_inf);
-    B::float_mask_where(fallback, neither_inf, lse)
+    B::float_add(mx, B::float_log1p(B::float_exp(safe_diff)))
 }
 
 /// Mask for the alpha skip transition: `l'[s] != blank AND l'[s] != l'[s-2] AND s >= 2`.

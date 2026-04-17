@@ -207,13 +207,6 @@ pub fn ctc_loss<R: CubeRuntime>(
     target_lengths: CubeTensor<R>,
     blank: usize,
 ) -> CubeTensor<R> {
-    // The kernel indexes via manual stride math (tensor[t*st + n*sn + c*sc]),
-    // which assumes the tensor's physical buffer matches its declared
-    // strides. Fusion-produced tensors (e.g. from a full training pipeline
-    // that ends in `log_softmax -> swap_dims -> narrow`) can arrive with
-    // layouts that break that assumption and silently produce garbage.
-    // `into_contiguous` is a no-op when already contiguous and is the same
-    // defensive pattern used by conv/interpolate kernels.
     let log_probs = into_contiguous(log_probs);
     let targets = into_contiguous(targets);
     let input_lengths = into_contiguous(input_lengths);
