@@ -183,23 +183,18 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     );
 
     // grad starts as exp(log_probs) * grad_loss[None, :, None].
-    let grad_loss_b = B::float_reshape(grad_loss, Shape::new([1, batch_size, 1]));
+    // Build both the [T, N, C] and [T, N, 2S+1] broadcasts from the same
+    // [1, N, 1] source instead of slicing C down to 1 from grad_loss_b.
+    let grad_loss_3d = B::float_reshape(grad_loss, Shape::new([1, batch_size, 1]));
     let grad_loss_b = B::float_expand(
-        grad_loss_b,
+        grad_loss_3d.clone(),
         Shape::new([max_input_length, batch_size, num_classes]),
     );
-    let mut grad = B::float_mul(B::float_exp(log_probs), grad_loss_b.clone());
+    let mut grad = B::float_mul(B::float_exp(log_probs), grad_loss_b);
 
     // Subtract sum over s of grad_loss[n] * exp(log_post[t, n, s]) at index l'[n, s].
-    let grad_loss_post = B::float_reshape(
-        B::float_slice(
-            grad_loss_b.clone(),
-            &[Slice::full(), Slice::full(), Slice::new(0, Some(1), 1)],
-        ),
-        Shape::new([max_input_length, batch_size, 1]),
-    );
     let grad_loss_post = B::float_expand(
-        grad_loss_post,
+        grad_loss_3d,
         Shape::new([max_input_length, batch_size, max_l_prime_len]),
     );
     let scatter_value = B::float_neg(B::float_mul(B::float_exp(log_post), grad_loss_post));
@@ -377,17 +372,46 @@ impl<B: Backend> AlphaCtx<B> {
         );
         let log_probs_at_l_full = B::float_gather(2, log_probs.clone(), indices_3d);
 
+        // Precompute `combined_mask_all[t, n, s] = (input_lengths[n] > t) AND
+        // s_mask[n, s]` for every t in one shot. The T-loop reads its row via
+        // a metadata-only slice instead of recomputing the `int_greater_elem`
+        // + bool_and per iteration.
+        let t_indices_2d = B::int_expand(
+            B::int_reshape(
+                B::int_arange(0..max_input_length as i64, &device, settings.int_dtype),
+                Shape::new([max_input_length, 1]),
+            ),
+            Shape::new([max_input_length, batch_size]),
+        );
+        let il_tn = B::int_expand(
+            B::int_reshape(input_lengths.clone(), Shape::new([1, batch_size])),
+            Shape::new([max_input_length, batch_size]),
+        );
+        let t_mask_all = B::bool_expand(
+            B::bool_reshape(
+                B::int_greater(il_tn, t_indices_2d, settings.bool_dtype),
+                Shape::new([max_input_length, batch_size, 1]),
+            ),
+            Shape::new([max_input_length, batch_size, max_l_prime_len]),
+        );
+        let s_mask_bcast = B::bool_expand(
+            B::bool_reshape(s_mask.clone(), Shape::new([1, batch_size, max_l_prime_len])),
+            Shape::new([max_input_length, batch_size, max_l_prime_len]),
+        );
+        let combined_mask_all = B::bool_and(t_mask_all, s_mask_bcast);
+
         for t in 1..max_input_length {
-            let t_mask_1d = B::int_greater_elem(
-                input_lengths.clone(),
-                (t as i64).into(),
-                settings.bool_dtype,
-            );
-            let t_mask = B::bool_expand(
-                B::bool_reshape(t_mask_1d, Shape::new([batch_size, 1])),
+            let combined_mask = B::bool_reshape(
+                B::bool_slice(
+                    combined_mask_all.clone(),
+                    &[
+                        Slice::new(t as isize, Some(t as isize + 1), 1),
+                        Slice::full(),
+                        Slice::full(),
+                    ],
+                ),
                 Shape::new([batch_size, max_l_prime_len]),
             );
-            let combined_mask = B::bool_and(t_mask, s_mask.clone());
 
             let log_alpha_s = log_alpha.clone();
             let log_alpha_s_m1 = right_shift::<B>(&log_alpha, &pad_1, max_l_prime_len, 1);
@@ -615,19 +639,20 @@ fn compute_log_beta_full<B: Backend>(
             Shape::new([batch_size, max_l_prime_len]),
         );
 
-        // Slice the hoisted [T, N] bool masks for this timestep.
-        let boundary_t_1d = B::bool_reshape(
-            B::bool_slice(
-                boundary_t_all.clone(),
-                &[
-                    Slice::new(t as isize, Some(t as isize + 1), 1),
-                    Slice::full(),
-                ],
-            ),
-            Shape::new([batch_size]),
-        );
+        // Slice the hoisted [T, N] bool mask for this timestep and broadcast
+        // straight to [N, 2S+1]. The intermediate [1, N] slice is reshaped
+        // directly to [N, 1] (no separate [N] step).
         let boundary_t = B::bool_expand(
-            B::bool_reshape(boundary_t_1d, Shape::new([batch_size, 1])),
+            B::bool_reshape(
+                B::bool_slice(
+                    boundary_t_all.clone(),
+                    &[
+                        Slice::new(t as isize, Some(t as isize + 1), 1),
+                        Slice::full(),
+                    ],
+                ),
+                Shape::new([batch_size, 1]),
+            ),
             Shape::new([batch_size, max_l_prime_len]),
         );
 
@@ -662,18 +687,17 @@ fn compute_log_beta_full<B: Backend>(
             f32::NEG_INFINITY.into(),
         );
         // Mask out t positions beyond input_length (hoisted slice).
-        let t_valid_1d = B::bool_reshape(
-            B::bool_slice(
-                t_valid_all.clone(),
-                &[
-                    Slice::new(t as isize, Some(t as isize + 1), 1),
-                    Slice::full(),
-                ],
-            ),
-            Shape::new([batch_size]),
-        );
         let t_valid = B::bool_expand(
-            B::bool_reshape(t_valid_1d, Shape::new([batch_size, 1])),
+            B::bool_reshape(
+                B::bool_slice(
+                    t_valid_all.clone(),
+                    &[
+                        Slice::new(t as isize, Some(t as isize + 1), 1),
+                        Slice::full(),
+                    ],
+                ),
+                Shape::new([batch_size, 1]),
+            ),
             Shape::new([batch_size, max_l_prime_len]),
         );
         log_beta = B::float_mask_fill(chosen, B::bool_not(t_valid), f32::NEG_INFINITY.into());
