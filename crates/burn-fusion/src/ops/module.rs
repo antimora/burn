@@ -1728,7 +1728,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             &grad_loss,
         ]);
         let client = log_probs.client.clone();
-        let shape = Shape::from(log_probs.shape.clone());
+        let shape = log_probs.shape.clone();
         let dtype = log_probs.dtype;
         let out = TensorIr::uninit(client.create_empty_handle(), shape, dtype);
 
