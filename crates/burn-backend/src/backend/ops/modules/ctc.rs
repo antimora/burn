@@ -132,6 +132,7 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     let max_target_len = target_shape.dims::<2>()[1];
     let max_l_prime_len = 2 * max_target_len + 1;
     let device = B::float_device(&log_probs);
+    let int_dtype: burn_std::IntDType = targets.dtype().into();
     let settings = get_device_settings::<B>(&device);
 
     let blank_inserted_targets = insert_blanks::<B>(
@@ -141,7 +142,7 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
         max_l_prime_len,
         blank,
         &device,
-        settings.int_dtype,
+        int_dtype,
     );
 
     // Both log_alpha[t, n, s] and log_beta[t, n, s] include a factor of
@@ -200,7 +201,7 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     grad = B::float_scatter_add(2, grad, indices_3d, scatter_value);
 
     // Mask out timesteps where t >= input_lengths[n].
-    let t_indices = B::int_arange(0..max_input_length as i64, &device, settings.int_dtype);
+    let t_indices = B::int_arange(0..max_input_length as i64, &device, int_dtype);
     let t_indices = B::int_reshape(t_indices, Shape::new([max_input_length, 1, 1]));
     let t_indices = B::int_expand(
         t_indices,
@@ -254,6 +255,7 @@ impl<B: Backend> AlphaCtx<B> {
         let max_target_len = target_shape.dims::<2>()[1];
         let device = B::float_device(&log_probs);
         let float_dtype: burn_std::FloatDType = log_probs.dtype().into();
+        let int_dtype: burn_std::IntDType = targets.dtype().into();
         let settings = get_device_settings::<B>(&device);
 
         let max_l_prime_len = 2 * max_target_len + 1;
@@ -264,7 +266,7 @@ impl<B: Backend> AlphaCtx<B> {
             max_l_prime_len,
             blank,
             &device,
-            settings.int_dtype,
+            int_dtype,
         );
 
         // Pre-allocate the full alpha tensor [T, N, 2S+1] filled with -inf.
@@ -333,7 +335,7 @@ impl<B: Backend> AlphaCtx<B> {
             max_l_prime_len,
             blank,
             &device,
-            settings.int_dtype,
+            int_dtype,
             settings.bool_dtype,
         );
         let s_mask = create_s_mask::<B>(
@@ -341,7 +343,7 @@ impl<B: Backend> AlphaCtx<B> {
             batch_size,
             max_l_prime_len,
             &device,
-            settings.int_dtype,
+            int_dtype,
             settings.bool_dtype,
         );
 
@@ -376,7 +378,7 @@ impl<B: Backend> AlphaCtx<B> {
         // + bool_and per iteration.
         let t_indices_2d = B::int_expand(
             B::int_reshape(
-                B::int_arange(0..max_input_length as i64, &device, settings.int_dtype),
+                B::int_arange(0..max_input_length as i64, &device, int_dtype),
                 Shape::new([max_input_length, 1]),
             ),
             Shape::new([max_input_length, batch_size]),
@@ -507,6 +509,7 @@ fn compute_log_beta_full<B: Backend>(
     let max_l_prime_len = alpha.max_l_prime_len;
     let device = B::float_device(&log_probs);
     let float_dtype: burn_std::FloatDType = log_probs.dtype().into();
+    let int_dtype: burn_std::IntDType = alpha.blank_inserted_targets.dtype().into();
     let settings = get_device_settings::<B>(&device);
     let blank_inserted_targets = &alpha.blank_inserted_targets;
 
@@ -545,7 +548,7 @@ fn compute_log_beta_full<B: Backend>(
     let last_label_idx_b =
         B::int_expand(last_label_idx_2d, Shape::new([batch_size, max_l_prime_len]));
 
-    let col_indices = B::int_arange(0..max_l_prime_len as i64, &device, settings.int_dtype);
+    let col_indices = B::int_arange(0..max_l_prime_len as i64, &device, int_dtype);
     let col_indices_2d = B::int_reshape(col_indices, Shape::new([1, max_l_prime_len]));
     let col_indices_b = B::int_expand(col_indices_2d, Shape::new([batch_size, max_l_prime_len]));
 
@@ -568,7 +571,7 @@ fn compute_log_beta_full<B: Backend>(
         batch_size,
         max_l_prime_len,
         &device,
-        settings.int_dtype,
+        int_dtype,
         settings.bool_dtype,
     );
     let s_mask = create_s_mask::<B>(
@@ -576,7 +579,7 @@ fn compute_log_beta_full<B: Backend>(
         batch_size,
         max_l_prime_len,
         &device,
-        settings.int_dtype,
+        int_dtype,
         settings.bool_dtype,
     );
 
@@ -601,7 +604,7 @@ fn compute_log_beta_full<B: Backend>(
 
     // `t_indices`: [T, 1]. `input_lengths`: [1, N]. Broadcast to [T, N].
     let t_indices_all = B::int_reshape(
-        B::int_arange(0..max_input_length as i64, &device, settings.int_dtype),
+        B::int_arange(0..max_input_length as i64, &device, int_dtype),
         Shape::new([max_input_length, 1]),
     );
     let t_indices_all = B::int_expand(t_indices_all, Shape::new([max_input_length, batch_size]));
