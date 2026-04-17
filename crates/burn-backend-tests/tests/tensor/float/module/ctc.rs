@@ -131,7 +131,9 @@ fn test_ctc_loss_long_sequence() {
 
     // Targets: distinct labels for each batch element, no consecutive repeats.
     let tgt_a: Vec<i64> = (0..60).map(|i| (i % 35 + 1) as i64).collect();
-    let tgt_b: Vec<i64> = (0..60).map(|i| if i < 40 { (i % 35 + 1) as i64 } else { 0 }).collect();
+    let tgt_b: Vec<i64> = (0..60)
+        .map(|i| if i < 40 { (i % 35 + 1) as i64 } else { 0 })
+        .collect();
     let mut tgt_flat = tgt_a;
     tgt_flat.extend(tgt_b);
     let targets = TestTensorInt::<2>::from(burn_tensor::TensorData::new(tgt_flat, [n, 60]));
@@ -181,7 +183,9 @@ fn test_ctc_loss_long_mixed_input_lengths() {
 
     let max_tgt = 64;
     let tgt_a: Vec<i64> = (0..max_tgt).map(|i| (i % 35 + 1) as i64).collect();
-    let tgt_b: Vec<i64> = (0..max_tgt).map(|i| if i < 43 { (i % 35 + 1) as i64 } else { 0 }).collect();
+    let tgt_b: Vec<i64> = (0..max_tgt)
+        .map(|i| if i < 43 { (i % 35 + 1) as i64 } else { 0 })
+        .collect();
     let mut tgt_flat = tgt_a;
     tgt_flat.extend(tgt_b);
     let targets = TestTensorInt::<2>::from(burn_tensor::TensorData::new(tgt_flat, [n, max_tgt]));
@@ -224,8 +228,7 @@ fn test_ctc_loss_narrowed_input() {
             }
         }
     }
-    let full_logits =
-        TestTensor::<3>::from(burn_tensor::TensorData::new(data, [t_full, n, c]));
+    let full_logits = TestTensor::<3>::from(burn_tensor::TensorData::new(data, [t_full, n, c]));
     let full_log_probs = log_softmax(full_logits, 2);
 
     // Narrow: skip the first `warmup` frames (simulating warmup slice).
@@ -238,10 +241,8 @@ fn test_ctc_loss_narrowed_input() {
         .into_data()
         .to_vec()
         .unwrap();
-    let reference = TestTensor::<3>::from(burn_tensor::TensorData::new(
-        reference_data,
-        [t_eff, n, c],
-    ));
+    let reference =
+        TestTensor::<3>::from(burn_tensor::TensorData::new(reference_data, [t_eff, n, c]));
 
     let targets = TestTensorInt::<2>::from([[1, 2]]);
     let input_lengths = TestTensorInt::<1>::from([t_eff as i64]);
@@ -265,6 +266,73 @@ fn test_ctc_loss_narrowed_input() {
         v_narrowed[0],
         v_reference[0],
     );
+}
+
+/// Training pipelines typically produce log_probs with a `[B, T, C] ->
+/// swap_dims(0, 1) -> [T, B, C] -> narrow(0, warmup, ...)` chain before
+/// handing the tensor to CTC. `swap_dims` makes strides non-monotonic,
+/// `narrow` introduces a non-zero base offset, and on fused backends the
+/// combination has historically produced garbage from manual stride
+/// indexing. This guards against that regression with a shape-compatible
+/// fixture (B=2 so swap_dims actually permutes strides non-trivially).
+#[test]
+fn test_ctc_loss_swap_dims_then_narrow() {
+    let b: usize = 2;
+    let t_full: usize = 8;
+    let warmup: usize = 2;
+    let t_eff: usize = t_full - warmup;
+    let c: usize = 4;
+
+    // Build logits in [B, T, C] layout (as a typical model output would).
+    let mut data = Vec::with_capacity(b * t_full * c);
+    for bi in 0..b {
+        for ti in 0..t_full {
+            for ci in 0..c {
+                data.push(((bi * 31 + ti * 7 + ci * 3) as f32 * 0.1).sin());
+            }
+        }
+    }
+    let logits_btc = TestTensor::<3>::from(burn_tensor::TensorData::new(data, [b, t_full, c]));
+    let log_probs_btc = log_softmax(logits_btc, 2);
+
+    // Permute to [T, B, C] (non-monotonic strides) then narrow away warmup.
+    let log_probs_tbc = log_probs_btc.clone().swap_dims(0, 1);
+    let narrowed = log_probs_tbc.narrow(0, warmup, t_eff);
+
+    // Reference: materialize the same slice as a contiguous [T, B, C] tensor.
+    let reference_data: Vec<f32> = log_probs_btc
+        .swap_dims(0, 1)
+        .slice([warmup..t_full, 0..b, 0..c])
+        .into_data()
+        .to_vec()
+        .unwrap();
+    let reference =
+        TestTensor::<3>::from(burn_tensor::TensorData::new(reference_data, [t_eff, b, c]));
+
+    let targets = TestTensorInt::<2>::from([[1_i64, 2], [2, 3]]);
+    let input_lengths = TestTensorInt::<1>::from([t_eff as i64, t_eff as i64]);
+    let target_lengths = TestTensorInt::<1>::from([2_i64, 2]);
+
+    let loss_narrowed = ctc_loss(
+        narrowed,
+        targets.clone(),
+        input_lengths.clone(),
+        target_lengths.clone(),
+        0,
+    );
+    let loss_reference = ctc_loss(reference, targets, input_lengths, target_lengths, 0);
+
+    let v_narrowed: Vec<f32> = loss_narrowed.into_data().to_vec().unwrap();
+    let v_reference: Vec<f32> = loss_reference.into_data().to_vec().unwrap();
+
+    for i in 0..b {
+        assert!(
+            (v_narrowed[i] - v_reference[i]).abs() < 1e-3,
+            "sample {i}: swap_dims+narrow loss ({}) diverges from contiguous reference ({})",
+            v_narrowed[i],
+            v_reference[i],
+        );
+    }
 }
 
 #[test]

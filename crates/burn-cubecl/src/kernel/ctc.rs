@@ -1,6 +1,8 @@
 use cubecl::prelude::*;
 
-use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, kernel::into_contiguous, ops::numeric::empty_device_dtype, tensor::CubeTensor,
+};
 use burn_backend::{Shape, TensorMetadata};
 
 /// Maximum `2 * max_target_len + 1` the kernel supports. The alpha row lives in
@@ -205,6 +207,18 @@ pub fn ctc_loss<R: CubeRuntime>(
     target_lengths: CubeTensor<R>,
     blank: usize,
 ) -> CubeTensor<R> {
+    // The kernel indexes via manual stride math (tensor[t*st + n*sn + c*sc]),
+    // which assumes the tensor's physical buffer matches its declared
+    // strides. Fusion-produced tensors (e.g. from a full training pipeline
+    // that ends in `log_softmax -> swap_dims -> narrow`) can arrive with
+    // layouts that break that assumption and silently produce garbage.
+    // `into_contiguous` is a no-op when already contiguous and is the same
+    // defensive pattern used by conv/interpolate kernels.
+    let log_probs = into_contiguous(log_probs);
+    let targets = into_contiguous(targets);
+    let input_lengths = into_contiguous(input_lengths);
+    let target_lengths = into_contiguous(target_lengths);
+
     let log_probs_shape = log_probs.shape();
     let [_t, batch_size, _c] = log_probs_shape.dims::<3>();
     let target_shape = targets.shape();
@@ -542,6 +556,13 @@ pub fn ctc_alpha_beta<R: CubeRuntime>(
     target_lengths: CubeTensor<R>,
     blank: usize,
 ) -> (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>) {
+    // See ctc_loss: manual stride indexing below requires a contiguous
+    // physical layout. No-op when already contiguous.
+    let log_probs = into_contiguous(log_probs);
+    let targets = into_contiguous(targets);
+    let input_lengths = into_contiguous(input_lengths);
+    let target_lengths = into_contiguous(target_lengths);
+
     let log_probs_shape = log_probs.shape();
     let [max_input_length, batch_size, _c] = log_probs_shape.dims::<3>();
     let target_shape = targets.shape();
