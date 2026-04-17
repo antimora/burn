@@ -110,6 +110,164 @@ fn test_ctc_loss_uniform() {
 }
 
 #[test]
+fn test_ctc_loss_long_sequence() {
+    // T=400, N=2, C=36, target_lengths=[60, 40]. Exercises the alpha
+    // recursion at training-realistic sequence lengths where numerical
+    // issues (shared-memory overflow, log-sum-exp accumulation drift)
+    // would surface but don't show in the short T=5..12 tests.
+    let t: usize = 400;
+    let n: usize = 2;
+    let c: usize = 36;
+    let mut data = Vec::with_capacity(t * n * c);
+    for ti in 0..t {
+        for ni in 0..n {
+            for ci in 0..c {
+                data.push(((ti * 7 + ni * 13 + ci * 3) as f32 * 0.1).sin());
+            }
+        }
+    }
+    let logits = TestTensor::<3>::from(burn_tensor::TensorData::new(data, [t, n, c]));
+    let log_probs = log_softmax(logits, 2);
+
+    // Targets: distinct labels for each batch element, no consecutive repeats.
+    let tgt_a: Vec<i64> = (0..60).map(|i| (i % 35 + 1) as i64).collect();
+    let tgt_b: Vec<i64> = (0..60).map(|i| if i < 40 { (i % 35 + 1) as i64 } else { 0 }).collect();
+    let mut tgt_flat = tgt_a;
+    tgt_flat.extend(tgt_b);
+    let targets = TestTensorInt::<2>::from(burn_tensor::TensorData::new(tgt_flat, [n, 60]));
+    let input_lengths = TestTensorInt::<1>::from([400, 400]);
+    let target_lengths = TestTensorInt::<1>::from([60, 40]);
+
+    let loss = ctc_loss(log_probs, targets, input_lengths, target_lengths, 0);
+    let loss_data: Vec<f32> = loss.into_data().to_vec().unwrap();
+
+    // We don't have a PyTorch reference for this exact input, but the loss
+    // must be positive (it's -log P where 0 < P <= 1) and finite.
+    for (i, &v) in loss_data.iter().enumerate() {
+        assert!(
+            v.is_finite() && v > 0.0,
+            "sample {i}: expected positive finite loss, got {v}"
+        );
+    }
+    // With 36 classes and random-ish logits, loss should be in the hundreds.
+    // An off-by-orders-of-magnitude result (< 1 or > 10000) indicates a bug.
+    for (i, &v) in loss_data.iter().enumerate() {
+        assert!(
+            v > 10.0 && v < 10000.0,
+            "sample {i}: loss {v} outside plausible range [10, 10000]"
+        );
+    }
+}
+
+#[test]
+fn test_ctc_loss_long_mixed_input_lengths() {
+    // T=494, N=2, C=36, input_lengths=[494, 390], target_lengths=[64, 43].
+    // The second sample has 104 frames of padding (input_length < T).
+    // Reproduces the exact dimensions of a real training batch that gave
+    // incorrect results on the cubecl kernel.
+    let t: usize = 494;
+    let n: usize = 2;
+    let c: usize = 36;
+    let mut data = Vec::with_capacity(t * n * c);
+    for ti in 0..t {
+        for ni in 0..n {
+            for ci in 0..c {
+                data.push(((ti * 7 + ni * 13 + ci * 3) as f32 * 0.1).sin());
+            }
+        }
+    }
+    let logits = TestTensor::<3>::from(burn_tensor::TensorData::new(data, [t, n, c]));
+    let log_probs = log_softmax(logits, 2);
+
+    let max_tgt = 64;
+    let tgt_a: Vec<i64> = (0..max_tgt).map(|i| (i % 35 + 1) as i64).collect();
+    let tgt_b: Vec<i64> = (0..max_tgt).map(|i| if i < 43 { (i % 35 + 1) as i64 } else { 0 }).collect();
+    let mut tgt_flat = tgt_a;
+    tgt_flat.extend(tgt_b);
+    let targets = TestTensorInt::<2>::from(burn_tensor::TensorData::new(tgt_flat, [n, max_tgt]));
+    let input_lengths = TestTensorInt::<1>::from([494, 390]);
+    let target_lengths = TestTensorInt::<1>::from([64, 43]);
+
+    let loss = ctc_loss(log_probs, targets, input_lengths, target_lengths, 0);
+    let loss_data: Vec<f32> = loss.into_data().to_vec().unwrap();
+
+    for (i, &v) in loss_data.iter().enumerate() {
+        assert!(
+            v.is_finite() && v > 0.0,
+            "sample {i}: expected positive finite loss, got {v}"
+        );
+        assert!(
+            v > 10.0 && v < 10000.0,
+            "sample {i}: loss {v} outside plausible range [10, 10000]"
+        );
+    }
+}
+
+#[test]
+fn test_ctc_loss_narrowed_input() {
+    // CTC on a narrowed (non-contiguous, offset != 0) log_probs tensor.
+    // Reproduces the pattern: model outputs [T_total, B, C], training
+    // code narrows to [T_total - warmup, B, C] before passing to CTC.
+    // If the kernel ignores the tensor's base offset, it reads the wrong
+    // data and produces garbage loss.
+    let t_full: usize = 10;
+    let warmup: usize = 3;
+    let t_eff: usize = t_full - warmup;
+    let n: usize = 1;
+    let c: usize = 4;
+
+    let mut data = Vec::with_capacity(t_full * n * c);
+    for ti in 0..t_full {
+        for ni in 0..n {
+            for ci in 0..c {
+                data.push(((ti * 7 + ni * 13 + ci * 3) as f32 * 0.1).sin());
+            }
+        }
+    }
+    let full_logits =
+        TestTensor::<3>::from(burn_tensor::TensorData::new(data, [t_full, n, c]));
+    let full_log_probs = log_softmax(full_logits, 2);
+
+    // Narrow: skip the first `warmup` frames (simulating warmup slice).
+    let narrowed = full_log_probs.clone().narrow(0, warmup, t_eff);
+
+    // Reference: manually extract the same slice as a contiguous tensor.
+    let reference_data: Vec<f32> = full_log_probs
+        .clone()
+        .slice([warmup..t_full, 0..n, 0..c])
+        .into_data()
+        .to_vec()
+        .unwrap();
+    let reference = TestTensor::<3>::from(burn_tensor::TensorData::new(
+        reference_data,
+        [t_eff, n, c],
+    ));
+
+    let targets = TestTensorInt::<2>::from([[1, 2]]);
+    let input_lengths = TestTensorInt::<1>::from([t_eff as i64]);
+    let target_lengths = TestTensorInt::<1>::from([2]);
+
+    let loss_narrowed = ctc_loss(
+        narrowed,
+        targets.clone(),
+        input_lengths.clone(),
+        target_lengths.clone(),
+        0,
+    );
+    let loss_reference = ctc_loss(reference, targets, input_lengths, target_lengths, 0);
+
+    let v_narrowed: Vec<f32> = loss_narrowed.into_data().to_vec().unwrap();
+    let v_reference: Vec<f32> = loss_reference.into_data().to_vec().unwrap();
+
+    assert!(
+        (v_narrowed[0] - v_reference[0]).abs() < 1e-3,
+        "narrowed loss ({}) diverges from contiguous reference ({})",
+        v_narrowed[0],
+        v_reference[0],
+    );
+}
+
+#[test]
 fn test_ctc_loss_matches_pytorch() {
     // T=5, N=3, C=4, deterministic logits via sin((t*7 + n*13 + c*3) * 0.1).
     // Expected per-sample losses computed by PyTorch's nn.functional.ctc_loss.

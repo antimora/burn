@@ -233,6 +233,12 @@ pub fn ctc_loss<R: CubeRuntime>(
     let cube_count = CubeCount::Static(batch_size as u32, 1, 1);
     let cube_dim = CubeDim::new_1d(cube_dim_x);
 
+    // Pass the actual max_l_prime (not the static capacity) so shared memory
+    // is sized to what we need. Metal limits threadgroup memory to 32 KB;
+    // allocating 2 * 8192 * sizeof(f32) = 64 KB would silently corrupt on
+    // Apple GPUs. Different max_l_prime values trigger separate kernel
+    // compilations (it's a comptime param), but that's fine: target lengths
+    // are stable within a dataset.
     ctc_loss_kernel::launch::<R>(
         &client,
         cube_count,
@@ -243,7 +249,7 @@ pub fn ctc_loss<R: CubeRuntime>(
         target_lengths.into_tensor_arg(),
         output.clone().into_tensor_arg(),
         blank as u32,
-        SHARED_ALPHA_CAPACITY,
+        max_l_prime as u32,
         [f_dtype.into(), i_dtype.into()],
     );
 
@@ -595,7 +601,7 @@ pub fn ctc_alpha_beta<R: CubeRuntime>(
         beta_out.clone().into_tensor_arg(),
         nll_out.clone().into_tensor_arg(),
         blank as u32,
-        SHARED_ALPHA_CAPACITY,
+        max_l_prime as u32,
         [f_dtype.into(), i_dtype.into()],
     );
 
