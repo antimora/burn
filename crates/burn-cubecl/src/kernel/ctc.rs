@@ -64,9 +64,14 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     // thread still reading alpha[s-1] or alpha[s-2] for its own s).
     let mut alpha = SharedMemory::<F>::new(2 * alpha_cap);
     // f32::NEG_INFINITY via F::new emits `f32(-inf)` in WGSL which is not a
-    // valid identifier there; use a finite sentinel that is small enough that
-    // `exp(x - neg_inf)` underflows to 0 for any real log-prob `x`.
-    let neg_inf = F::new(-1.0e30_f32);
+    // valid identifier there. Use a finite sentinel that fits in both f32
+    // and f16 (max magnitude ~65504) and is far enough below any real
+    // accumulated alpha that `exp(alpha - neg_inf)` underflows cleanly.
+    // The sentinel drifts slightly each recursion step on f32 (precision is
+    // better than log_probs magnitude), so downstream detection uses a
+    // threshold comparison instead of exact equality.
+    let neg_inf = F::new(-6.0e4_f32);
+    let unreachable_threshold = F::new(-1.0e4_f32);
     let one = F::new(1.0);
 
     // Initialize alpha at t = 0. Each thread strides over its assigned s positions.
@@ -119,16 +124,18 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
                 a_s_m2 = alpha[s - 2];
             }
 
-            // log_sum_exp(a_s, a_s_m1). Guarding `mx == -inf` avoids the
-            // `-inf - -inf = NaN` case; when both terms are -inf the sum is
-            // -inf too.
+            // log_sum_exp(a_s, a_s_m1). The `mx < threshold` guard catches
+            // unreachable positions whose alphas are at the sentinel (or
+            // drifted below threshold). Computing log_sum_exp when both
+            // terms are at the sentinel would cause the value to drift
+            // upward each iteration.
             let mut mx01 = a_s;
             let mut mn01 = a_s_m1;
             if a_s_m1 > a_s {
                 mx01 = a_s_m1;
                 mn01 = a_s;
             }
-            let lse_01 = if mx01 == neg_inf {
+            let lse_01 = if mx01 < unreachable_threshold {
                 mx01
             } else {
                 mx01 + (one + (mn01 - mx01).exp()).ln()
@@ -142,7 +149,7 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
                     mx2 = a_s_m2;
                     mn2 = lse_01;
                 }
-                combined = if mx2 == neg_inf {
+                combined = if mx2 < unreachable_threshold {
                     mx2
                 } else {
                     mx2 + (one + (mn2 - mx2).exp()).ln()
@@ -183,7 +190,7 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
         // true +inf via exp() overflow so downstream `is_inf` checks fire.
         // Building it arithmetically from a runtime-dependent value also
         // keeps WGSL's comptime-overflow validator happy.
-        output[n] = if mx == neg_inf {
+        output[n] = if mx < unreachable_threshold {
             // Use a runtime-dependent value so WGSL can't fold at comptime
             // and reject as overflow. `input_len >= 1` is guaranteed here.
             (F::new(1000.0_f32) * F::cast_from(input_len as u32)).exp()
@@ -317,10 +324,11 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     // residual alpha values sitting in the active row between phases are never
     // observed by beta (its boundary init overwrites every slot it reads).
     let mut state = SharedMemory::<F>::new(2 * alpha_cap);
-    // f32::NEG_INFINITY via F::new emits `f32(-inf)` in WGSL which is not a
-    // valid identifier there; use a finite sentinel that is small enough that
-    // `exp(x - neg_inf)` underflows to 0 for any real log-prob `x`.
-    let neg_inf = F::new(-1.0e30_f32);
+    // See ctc_loss_kernel: `F::new(f32::NEG_INFINITY)` emits invalid WGSL.
+    // Sentinel must also fit f16 (max magnitude ~65504). Drift from sentinel
+    // is handled via threshold detection rather than exact equality.
+    let neg_inf = F::new(-6.0e4_f32);
+    let unreachable_threshold = F::new(-1.0e4_f32);
     let one = F::new(1.0);
 
     // Mirrors ctc_loss_kernel: with input_len == 0 the t = 0 init would read
@@ -388,7 +396,7 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
                 mx01 = a_s_m1;
                 mn01 = a_s;
             }
-            let lse_01 = if mx01 == neg_inf {
+            let lse_01 = if mx01 < unreachable_threshold {
                 mx01
             } else {
                 mx01 + (one + (mn01 - mx01).exp()).ln()
@@ -402,7 +410,7 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
                     mx2 = a_s_m2;
                     mn2 = lse_01;
                 }
-                combined = if mx2 == neg_inf {
+                combined = if mx2 < unreachable_threshold {
                     mx2
                 } else {
                     mx2 + (one + (mn2 - mx2).exp()).ln()
@@ -437,7 +445,7 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
         }
         // See ctc_loss_kernel: emit true +inf via exp() overflow when the
         // sentinel dominates, so downstream `is_inf` checks fire.
-        nll_out[n] = if mx == neg_inf {
+        nll_out[n] = if mx < unreachable_threshold {
             (F::new(1000.0_f32) * F::cast_from(input_len as u32)).exp()
         } else {
             F::new(0.0) - (mx + (one + (mn - mx).exp()).ln())
@@ -511,7 +519,7 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
                     mx01 = b_s_p1;
                     mn01 = b_s;
                 }
-                let lse_01 = if mx01 == neg_inf {
+                let lse_01 = if mx01 < unreachable_threshold {
                     mx01
                 } else {
                     mx01 + (one + (mn01 - mx01).exp()).ln()
@@ -525,7 +533,7 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
                         mx2 = b_s_p2;
                         mn2 = lse_01;
                     }
-                    combined = if mx2 == neg_inf {
+                    combined = if mx2 < unreachable_threshold {
                         mx2
                     } else {
                         mx2 + (one + (mn2 - mx2).exp()).ln()
