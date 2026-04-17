@@ -207,6 +207,9 @@ pub fn ctc_loss<R: CubeRuntime>(
     target_lengths: CubeTensor<R>,
     blank: usize,
 ) -> CubeTensor<R> {
+    // Manual stride indexing below requires a contiguous physical layout;
+    // fusion-produced tensors may arrive with layouts that break that
+    // assumption. No-op when already contiguous.
     let log_probs = into_contiguous(log_probs);
     let targets = into_contiguous(targets);
     let input_lengths = into_contiguous(input_lengths);
@@ -549,8 +552,9 @@ pub fn ctc_alpha_beta<R: CubeRuntime>(
     target_lengths: CubeTensor<R>,
     blank: usize,
 ) -> (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>) {
-    // See ctc_loss: manual stride indexing below requires a contiguous
-    // physical layout. No-op when already contiguous.
+    // Manual stride indexing below requires a contiguous physical layout;
+    // fusion-produced tensors may arrive with layouts that break that
+    // assumption. No-op when already contiguous.
     let log_probs = into_contiguous(log_probs);
     let targets = into_contiguous(targets);
     let input_lengths = into_contiguous(input_lengths);

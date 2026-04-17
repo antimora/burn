@@ -240,9 +240,9 @@ struct AlphaCtx<B: Backend> {
     last: FloatTensor<B>,
     /// `l'` after blank insertion `[N, 2S+1]`.
     blank_inserted_targets: IntTensor<B>,
-    /// `log_probs[t, n, l'[n, s]]` pre-gathered as `[T, N, 2S+1]`. Reused
-    /// across the alpha recursion, the beta recursion, and the gradient
-    /// composition so the expensive gather runs exactly once.
+    /// `log_probs[t, n, l'[n, s]]` pre-gathered as `[T, N, 2S+1]`. The
+    /// alpha recursion gathers this once, then `compute_log_beta_full`
+    /// borrows it via `AlphaCtx` so beta does not re-gather.
     log_probs_at_l_full: FloatTensor<B>,
     max_l_prime_len: usize,
 }
@@ -738,10 +738,10 @@ fn right_shift<B: Backend>(
     cols: usize,
     shift: usize,
 ) -> FloatTensor<B> {
-    // Shifting by more than the column count pushes every data slot off the
-    // right. Avoid the `cols - shift` usize underflow when
-    // `max_target_len == 0` (so `max_l_prime_len == 1`) by slicing the
-    // padding itself - it's already an all-`-inf` tensor of the right shape.
+    // Shifting by more than the column count pushes every data slot off
+    // the right. Avoid the `cols - shift` usize underflow when
+    // `max_target_len == 0` (so `max_l_prime_len == 1`) by narrowing the
+    // all-`-inf` padding down to `cols`.
     if cols < shift {
         return B::float_slice(
             padding.clone(),
@@ -792,6 +792,10 @@ fn left_shift<B: Backend>(
 /// - Both -inf: returns -inf
 /// - One -inf, one finite: returns the finite value
 /// - Both finite: standard log-sum-exp
+///
+/// Assumes inputs are `<= 0` (log-probabilities). `+inf` inputs produce
+/// NaN (the `+inf + -inf` intermediate in the diff), but log-probs never
+/// exceed `0` in a well-formed CTC input.
 fn log_sum_exp<B: Backend>(
     a: FloatTensor<B>,
     b: FloatTensor<B>,
