@@ -540,3 +540,218 @@ fn test_ctc_loss_grad_empty_target() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(1e-4, 1e-4));
 }
+
+/// Regression guard for NaN gradient on unreachable targets, driven through
+/// `.backward()` rather than a direct `ctc_loss_backward` call. The direct-path
+/// version is covered by `test_ctc_loss_backward_unreachable_is_finite`; this
+/// test exists because a lazy-backend regression in log_sum_exp or the
+/// grad-composition mask can leave NaN in the autodiff trace even when the
+/// direct backward call is finite.
+///
+/// Note: the direct backward asserts grad == 0 (the mask inside
+/// `ctc_grad_from_alpha_beta_default` zeroes entries for +inf nll). The autodiff
+/// path currently produces a non-zero but finite gradient for this case because
+/// `loss.sum().backward()` seeds through a +inf forward value. Finiteness is
+/// what guards training stability; the zero-vs-finite-nonzero difference is a
+/// separate concern.
+#[test]
+fn test_ctc_loss_grad_unreachable_is_finite() {
+    let device = AutodiffDevice::new();
+
+    // T=2, target=[1, 1] needs three steps, so nll = +inf for this sample.
+    let log_probs = TestTensor::<3>::full([2, 1, 3], (1.0f32 / 3.0).ln(), &device).require_grad();
+
+    let targets = TestTensorInt::<2>::from_data(TensorData::from([[1_i64, 1]]), &device);
+    let input_lengths = TestTensorInt::<1>::from_data(TensorData::from([2_i64]), &device);
+    let target_lengths = TestTensorInt::<1>::from_data(TensorData::from([2_i64]), &device);
+
+    let loss = ctc_loss(log_probs.clone(), targets, input_lengths, target_lengths, 0).sum();
+    let grads = loss.backward();
+    let log_probs_grad = log_probs.grad(&grads).unwrap();
+    for v in log_probs_grad.into_data().iter::<f32>() {
+        assert!(
+            v.is_finite(),
+            "gradient through .backward() must be finite for unreachable targets, got {v}",
+        );
+    }
+}
+
+/// Gradient through `.backward()` on a `swap_dims + narrow` input chain, a layout
+/// produced by typical training code ([B, T, C] model output -> [T, B, C] ->
+/// skip warmup). Forward-only tests cover `narrow` and `swap_dims+narrow`; this
+/// also checks that the autodiff path preserves strides end-to-end rather than
+/// materializing a contiguous copy with wrong offsets.
+#[test]
+fn test_ctc_loss_grad_swap_dims_then_narrow() {
+    let b: usize = 2;
+    let t_full: usize = 8;
+    let warmup: usize = 2;
+    let t_eff: usize = t_full - warmup;
+    let c: usize = 4;
+
+    let device = AutodiffDevice::new();
+
+    let mut data = Vec::with_capacity(b * t_full * c);
+    for bi in 0..b {
+        for ti in 0..t_full {
+            for ci in 0..c {
+                data.push(((bi * 31 + ti * 7 + ci * 3) as f32 * 0.1).sin());
+            }
+        }
+    }
+
+    // Path A: [B, T, C] -> swap -> narrow, all on a single require_grad leaf.
+    let logits_btc_a =
+        TestTensor::<3>::from_data(TensorData::new(data.clone(), [b, t_full, c]), &device)
+            .require_grad();
+    let log_probs_a = log_softmax(logits_btc_a.clone(), 2)
+        .swap_dims(0, 1)
+        .narrow(0, warmup, t_eff);
+
+    let targets_a = TestTensorInt::<2>::from_data(TensorData::from([[1_i64, 2], [2, 3]]), &device);
+    let input_lengths_a =
+        TestTensorInt::<1>::from_data(TensorData::from([t_eff as i64, t_eff as i64]), &device);
+    let target_lengths_a =
+        TestTensorInt::<1>::from_data(TensorData::from([2_i64, 2]), &device);
+
+    let loss_a = ctc_loss(log_probs_a, targets_a, input_lengths_a, target_lengths_a, 0).sum();
+    let grads_a = loss_a.backward();
+    let grad_a = logits_btc_a.grad(&grads_a).unwrap();
+
+    // Path B: build the equivalent [T, B, C] contiguous layout up front so the
+    // log_softmax -> ctc_loss chain sees a plain contiguous tensor. Transpose
+    // the incoming data to [T, B, C] order.
+    let mut data_tbc = Vec::with_capacity(t_full * b * c);
+    for ti in 0..t_full {
+        for bi in 0..b {
+            for ci in 0..c {
+                data_tbc.push(((bi * 31 + ti * 7 + ci * 3) as f32 * 0.1).sin());
+            }
+        }
+    }
+    let logits_tbc_b =
+        TestTensor::<3>::from_data(TensorData::new(data_tbc, [t_full, b, c]), &device)
+            .require_grad();
+    let log_probs_b = log_softmax(logits_tbc_b.clone(), 2).narrow(0, warmup, t_eff);
+
+    let targets_b = TestTensorInt::<2>::from_data(TensorData::from([[1_i64, 2], [2, 3]]), &device);
+    let input_lengths_b =
+        TestTensorInt::<1>::from_data(TensorData::from([t_eff as i64, t_eff as i64]), &device);
+    let target_lengths_b =
+        TestTensorInt::<1>::from_data(TensorData::from([2_i64, 2]), &device);
+
+    let loss_b = ctc_loss(log_probs_b, targets_b, input_lengths_b, target_lengths_b, 0).sum();
+    let grads_b = loss_b.backward();
+    let grad_b_tbc = logits_tbc_b.grad(&grads_b).unwrap();
+
+    // Compare path A's grad (laid out [B, T, C]) against path B's grad (laid
+    // out [T, B, C]) element by element.
+    let grad_a_data: Vec<f32> = grad_a.into_data().iter::<f32>().collect();
+    let grad_b_data: Vec<f32> = grad_b_tbc.into_data().iter::<f32>().collect();
+    for bi in 0..b {
+        for ti in 0..t_full {
+            for ci in 0..c {
+                let idx_a = (bi * t_full + ti) * c + ci;
+                let idx_b = (ti * b + bi) * c + ci;
+                let diff = (grad_a_data[idx_a] - grad_b_data[idx_b]).abs();
+                assert!(
+                    diff < 1e-3,
+                    "grad mismatch at (b={bi}, t={ti}, c={ci}): A={} vs B={}",
+                    grad_a_data[idx_a],
+                    grad_b_data[idx_b],
+                );
+            }
+        }
+    }
+}
+
+/// Autodiff at production scale. The training repo (speechlet exp-11) reported
+/// loss ~0.18 instead of ~1250 on a freshly-initialized model when log_probs
+/// were routed through `log_softmax -> swap_dims(0,1) -> narrow(0, warmup, ...)`
+/// on `Autodiff<Fusion<CubeBackend>>`, while the contiguous-[T, B, C] reference
+/// (same raw data) produced the correct value. Reproduces that exact shape
+/// chain with a deterministic fixture and compares the two paths.
+#[test]
+fn test_ctc_loss_scaled_swap_dims_then_narrow_autodiff() {
+    let b: usize = 2;
+    let t_full: usize = 494;
+    let warmup: usize = 92;
+    let t_eff: usize = t_full - warmup;
+    let c: usize = 36;
+
+    let device = AutodiffDevice::new();
+
+    let mut data_btc = Vec::with_capacity(b * t_full * c);
+    for bi in 0..b {
+        for ti in 0..t_full {
+            for ci in 0..c {
+                data_btc.push(((bi * 31 + ti * 7 + ci * 3) as f32 * 0.1).sin());
+            }
+        }
+    }
+
+    let logits_btc_a =
+        TestTensor::<3>::from_data(TensorData::new(data_btc.clone(), [b, t_full, c]), &device)
+            .require_grad();
+    let log_probs_a = log_softmax(logits_btc_a, 2)
+        .swap_dims(0, 1)
+        .narrow(0, warmup, t_eff);
+
+    let mut targets_data = alloc::vec![0_i64; b * 64];
+    for bi in 0..b {
+        let max = if bi == 0 { 64 } else { 43 };
+        for si in 0..max {
+            targets_data[bi * 64 + si] = ((si * 3 + bi * 7) % 35 + 1) as i64;
+        }
+    }
+    let targets_a =
+        TestTensorInt::<2>::from_data(TensorData::new(targets_data.clone(), [b, 64]), &device);
+    let input_lengths_a =
+        TestTensorInt::<1>::from_data(TensorData::from([t_eff as i64, t_eff as i64]), &device);
+    let target_lengths_a =
+        TestTensorInt::<1>::from_data(TensorData::from([64_i64, 43]), &device);
+
+    let loss_a_per_sample =
+        ctc_loss(log_probs_a, targets_a, input_lengths_a, target_lengths_a, 0);
+    let loss_a_vec: Vec<f32> = loss_a_per_sample.clone().into_data().iter::<f32>().collect();
+
+    // Path B: build the equivalent contiguous [T, B, C] layout up front.
+    let mut data_tbc = Vec::with_capacity(t_full * b * c);
+    for ti in 0..t_full {
+        for bi in 0..b {
+            for ci in 0..c {
+                data_tbc.push(((bi * 31 + ti * 7 + ci * 3) as f32 * 0.1).sin());
+            }
+        }
+    }
+    let logits_tbc_b =
+        TestTensor::<3>::from_data(TensorData::new(data_tbc, [t_full, b, c]), &device);
+    let log_probs_b = log_softmax(logits_tbc_b, 2).narrow(0, warmup, t_eff);
+
+    let targets_b =
+        TestTensorInt::<2>::from_data(TensorData::new(targets_data, [b, 64]), &device);
+    let input_lengths_b =
+        TestTensorInt::<1>::from_data(TensorData::from([t_eff as i64, t_eff as i64]), &device);
+    let target_lengths_b =
+        TestTensorInt::<1>::from_data(TensorData::from([64_i64, 43]), &device);
+
+    let loss_b_per_sample =
+        ctc_loss(log_probs_b, targets_b, input_lengths_b, target_lengths_b, 0);
+    let loss_b_vec: Vec<f32> = loss_b_per_sample.into_data().iter::<f32>().collect();
+
+    for i in 0..b {
+        assert!(
+            loss_a_vec[i] > 0.0,
+            "sample {i}: autodiff+swap_dims+narrow loss is not positive ({}); a valid CTC \
+             loss must be >= 0 for log-probs <= 0",
+            loss_a_vec[i],
+        );
+        assert!(
+            (loss_a_vec[i] - loss_b_vec[i]).abs() < 1.0,
+            "sample {i}: autodiff swap_dims+narrow loss ({}) diverges from contiguous \
+             reference loss ({})",
+            loss_a_vec[i],
+            loss_b_vec[i],
+        );
+    }
+}

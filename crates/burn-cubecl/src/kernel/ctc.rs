@@ -5,10 +5,12 @@ use crate::{
 };
 use burn_backend::{Shape, TensorMetadata};
 
-/// Maximum `2 * max_target_len + 1` the kernel supports. The alpha row lives in
-/// shared memory; this size in `f32` consumes 32 KB, comfortably within the per-block
-/// shared-memory budget on every consumer GPU we target. Inputs exceeding this
-/// will panic with a clear message rather than silently degrading.
+/// Maximum `2 * max_target_len + 1` the kernel supports. The alpha/beta state is
+/// held in shared memory as two f32 buffers of this size (active row + scratch),
+/// so peak shared use at full capacity is `2 * 8192 * 4 = 64 KB`. Apple Metal
+/// caps shared memory at 32 KB per block, so the launch site sizes the buffer to
+/// the actual per-batch `max_l_prime`; this constant is only the kernel-side
+/// upper bound. Inputs exceeding it panic rather than silently degrade.
 const SHARED_ALPHA_CAPACITY: u32 = 8192;
 
 /// CTC alpha-recursion kernel.
@@ -86,9 +88,6 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     // compute alpha[t, s] from alpha[t-1, *] and writes back to the same
     // shared memory after a full read fence.
     for t in 1..input_len {
-        // First pass: compute new alpha values into local registers.
-        // Note: cubecl does not let us hold a per-thread Vec of new values, so
-        // we serialize - read, sync, write. Two passes per iteration.
         let mut s = UNIT_POS_X as usize;
         while s < l_prime_len {
             // Compute l'[s] class
@@ -146,15 +145,6 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
                     mx2 + (one + (mn2 - mx2).exp()).ln()
                 };
             }
-            // We can write directly to alpha[s] only after every other thread
-            // has finished reading alpha[s-1] / alpha[s-2] for *its* s. Since
-            // a thread's writes only conflict with neighbors at most 2 away,
-            // and we're processing in stride-cube_dim batches, conflicts can
-            // happen across stride iterations. Force a full sync below.
-            //
-            // Stash the new value in shared mem at offset alpha_cap + s as a
-            // scratch buffer? Simpler: gather everything then sync then write.
-            // Use a second shared buffer.
             alpha[alpha_cap + s] = log_p + combined;
             s += cube_dim;
         }
@@ -323,7 +313,16 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     let neg_inf = F::new(f32::NEG_INFINITY);
     let one = F::new(1.0);
 
-    // ---------- Alpha phase (forward) ----------
+    // Mirrors ctc_loss_kernel: with input_len == 0 the t = 0 init would read
+    // log_probs out of bounds. The beta phase below already guards on this.
+    if input_len == 0 {
+        if UNIT_POS_X == 0 {
+            nll_out[n] = F::new(0.0);
+        }
+        terminate!();
+    }
+
+    // Alpha phase (forward).
     //
     // Initialize alpha at t = 0. We write s=0 and s=1 from log_probs; the rest
     // is -inf. Every thread also publishes its slot to alpha_out[0, n, s].
@@ -438,7 +437,7 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     // against the beta boundary init, which writes those same positions.
     sync_cube();
 
-    // ---------- Beta phase (reverse) ----------
+    // Beta phase (reverse).
 
     if input_len > 0 {
         // Boundary initialization at t = input_len - 1: set beta[s] = log_probs[t, l'[s]]

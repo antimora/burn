@@ -102,8 +102,8 @@ pub fn ctc_loss_backward_default<B: Backend>(
 /// Compose the CTC gradient w.r.t. `log_probs` from pre-computed alpha, beta, and nll.
 ///
 /// The T-iteration alpha and beta recursions are the dominant cost of the backward
-/// pass. Backends that fuse those recursions into a single kernel launch (such as
-/// burn-cubecl) can call this helper to reuse the gradient composition.
+/// pass. Backends that fuse those recursions into a single kernel launch can call
+/// this helper to reuse the gradient composition.
 ///
 /// # Arguments
 ///
@@ -183,8 +183,6 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     );
 
     // grad starts as exp(log_probs) * grad_loss[None, :, None].
-    // Build both the [T, N, C] and [T, N, 2S+1] broadcasts from the same
-    // [1, N, 1] source instead of slicing C down to 1 from grad_loss_b.
     let grad_loss_3d = B::float_reshape(grad_loss, Shape::new([1, batch_size, 1]));
     let grad_loss_b = B::float_expand(
         grad_loss_3d.clone(),
@@ -553,16 +551,9 @@ fn compute_log_beta_full<B: Backend>(
 
     let is_last_blank = B::int_equal(col_indices_b.clone(), last_blank_idx_b, settings.bool_dtype);
     let is_last_label = B::int_equal(col_indices_b, last_label_idx_b, settings.bool_dtype);
-    let is_boundary = B::bool_or(is_last_blank, is_last_label.clone());
-    // For target_lengths == 0, last_label_idx was clamped to 0, which would
-    // double-mark s=0 as boundary; suppress the last_label boundary in that case.
-    let target_len_zero = B::int_equal_elem(target_lengths.clone(), 0.into(), settings.bool_dtype);
-    let target_len_zero_b = B::bool_expand(
-        B::bool_reshape(target_len_zero, Shape::new([batch_size, 1])),
-        Shape::new([batch_size, max_l_prime_len]),
-    );
-    let is_last_label_real = B::bool_and(is_last_label, B::bool_not(target_len_zero_b));
-    let _ = is_last_label_real; // already in is_boundary via union
+    // When target_lengths == 0, last_label_idx was clamped to 0, so `is_last_label`
+    // and `is_last_blank` both mark s=0; the OR makes the double-mark a no-op.
+    let is_boundary = B::bool_or(is_last_blank, is_last_label);
 
     // Reverse loop: t = T-1, T-2, ..., 0.
     let mut log_beta = B::float_full(
@@ -805,21 +796,17 @@ fn left_shift<B: Backend>(
     B::float_cat(alloc::vec![shortened, padding.clone()], 1)
 }
 
-/// Compute log(exp(a) + exp(b)) in a numerically stable way.
+/// Compute `log(exp(a) + exp(b))` in a numerically stable way.
 ///
-/// `log_sum_exp(a, b) = max(a, b) + log1p(exp(-|a - b|))`. The only edge
-/// case is `a = b = -inf`, where `-|(-inf) - (-inf)| = NaN`. We detect
-/// `max == -inf` and substitute `0` for the diff there; the final sum
-/// stays `-inf` because `-inf + log(2) = -inf`.
+/// `log_sum_exp(a, b) = max(a, b) + log1p(exp(-|a - b|))`. The edge case is
+/// `a = b = -inf`, where `-|(-inf) - (-inf)| = NaN`; we detect `max == -inf`
+/// and substitute a `-inf` diff so the final sum stays `-inf` (both via the
+/// mask and because `log1p(exp(-inf)) = 0`). Gradient-safe: no `NaN` flows
+/// through the forward intermediates when inputs are `-inf`.
 ///
-/// Handles -inf correctly and is safe for gradient computation:
-/// - Both -inf: returns -inf
-/// - One -inf, one finite: returns the finite value
-/// - Both finite: standard log-sum-exp
-///
-/// Assumes inputs are `<= 0` (log-probabilities). `+inf` inputs produce
-/// NaN (the `+inf + -inf` intermediate in the diff), but log-probs never
-/// exceed `0` in a well-formed CTC input.
+/// Precondition: inputs must be `<= 0` (log-probabilities). `+inf` inputs are
+/// not guarded and produce `NaN`; callers outside the CTC recursion should
+/// validate this themselves.
 fn log_sum_exp<B: Backend>(
     a: FloatTensor<B>,
     b: FloatTensor<B>,
@@ -950,14 +937,8 @@ fn create_l_prime_skip_forward_mask<B: Backend>(
     let s_lt_l_prime_minus_2 =
         B::int_lower_elem(col_indices, (max_l_prime_len as i64 - 2).into(), bool_dtype);
 
-    // l'[s] != blank: needed - the skip transition is allowed only when the
-    // current position is a label, not blank.
-    let blank_int = blank_inserted_targets.clone();
-    // Use 0 below as a placeholder; cubecl backends will pick this up via `_blank`.
-    // Actually we need the blank value here. The caller has it. Re-derive from l'.
-    let _ = blank_int;
-    // Workaround: reuse the alpha mask logic by checking against the first blank
-    // position, which is l'[0] by construction.
+    // l'[s] != blank. `l'[0]` is blank by construction of `insert_blanks`,
+    // so we broadcast column 0 across s to get the per-row blank class.
     let blank_class_per_row = B::int_slice(
         blank_inserted_targets.clone(),
         &[Slice::full(), Slice::new(0, Some(1), 1)],
