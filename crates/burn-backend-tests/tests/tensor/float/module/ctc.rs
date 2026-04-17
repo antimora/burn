@@ -141,7 +141,9 @@ fn test_ctc_loss_long_sequence() {
     let target_lengths = TestTensorInt::<1>::from([60, 40]);
 
     let loss = ctc_loss(log_probs, targets, input_lengths, target_lengths, 0);
-    let loss_data: Vec<f32> = loss.into_data().to_vec().unwrap();
+    // `iter::<f32>` converts from the backend's native dtype (f16, f32, ...)
+    // to f32 for comparison; `to_vec::<f32>` would require exact dtype match.
+    let loss_data: Vec<f32> = loss.into_data().iter::<f32>().collect();
 
     // We don't have a PyTorch reference for this exact input, but the loss
     // must be positive (it's -log P where 0 < P <= 1) and finite.
@@ -193,7 +195,7 @@ fn test_ctc_loss_long_mixed_input_lengths() {
     let target_lengths = TestTensorInt::<1>::from([64, 43]);
 
     let loss = ctc_loss(log_probs, targets, input_lengths, target_lengths, 0);
-    let loss_data: Vec<f32> = loss.into_data().to_vec().unwrap();
+    let loss_data: Vec<f32> = loss.into_data().iter::<f32>().collect();
 
     for (i, &v) in loss_data.iter().enumerate() {
         assert!(
@@ -235,12 +237,14 @@ fn test_ctc_loss_narrowed_input() {
     let narrowed = full_log_probs.clone().narrow(0, warmup, t_eff);
 
     // Reference: manually extract the same slice as a contiguous tensor.
-    let reference_data: Vec<f32> = full_log_probs
+    // Collect in the backend's native dtype (f32 or f16) to preserve
+    // precision when rebuilding the tensor.
+    let reference_data: Vec<FloatElem> = full_log_probs
         .clone()
         .slice([warmup..t_full, 0..n, 0..c])
         .into_data()
-        .to_vec()
-        .unwrap();
+        .iter::<FloatElem>()
+        .collect();
     let reference =
         TestTensor::<3>::from(burn_tensor::TensorData::new(reference_data, [t_eff, n, c]));
 
@@ -257,8 +261,8 @@ fn test_ctc_loss_narrowed_input() {
     );
     let loss_reference = ctc_loss(reference, targets, input_lengths, target_lengths, 0);
 
-    let v_narrowed: Vec<f32> = loss_narrowed.into_data().to_vec().unwrap();
-    let v_reference: Vec<f32> = loss_reference.into_data().to_vec().unwrap();
+    let v_narrowed: Vec<f32> = loss_narrowed.into_data().iter::<f32>().collect();
+    let v_reference: Vec<f32> = loss_reference.into_data().iter::<f32>().collect();
 
     assert!(
         (v_narrowed[0] - v_reference[0]).abs() < 1e-3,
@@ -299,13 +303,14 @@ fn test_ctc_loss_swap_dims_then_narrow() {
     let log_probs_tbc = log_probs_btc.clone().swap_dims(0, 1);
     let narrowed = log_probs_tbc.narrow(0, warmup, t_eff);
 
-    // Reference: materialize the same slice as a contiguous [T, B, C] tensor.
-    let reference_data: Vec<f32> = log_probs_btc
+    // Reference: materialize the same slice as a contiguous [T, B, C] tensor
+    // in the backend's native dtype.
+    let reference_data: Vec<FloatElem> = log_probs_btc
         .swap_dims(0, 1)
         .slice([warmup..t_full, 0..b, 0..c])
         .into_data()
-        .to_vec()
-        .unwrap();
+        .iter::<FloatElem>()
+        .collect();
     let reference =
         TestTensor::<3>::from(burn_tensor::TensorData::new(reference_data, [t_eff, b, c]));
 
@@ -322,8 +327,8 @@ fn test_ctc_loss_swap_dims_then_narrow() {
     );
     let loss_reference = ctc_loss(reference, targets, input_lengths, target_lengths, 0);
 
-    let v_narrowed: Vec<f32> = loss_narrowed.into_data().to_vec().unwrap();
-    let v_reference: Vec<f32> = loss_reference.into_data().to_vec().unwrap();
+    let v_narrowed: Vec<f32> = loss_narrowed.into_data().iter::<f32>().collect();
+    let v_reference: Vec<f32> = loss_reference.into_data().iter::<f32>().collect();
 
     for i in 0..b {
         assert!(
