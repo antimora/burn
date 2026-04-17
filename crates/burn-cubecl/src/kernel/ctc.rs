@@ -25,12 +25,13 @@ const SHARED_ALPHA_CAPACITY: u32 = 8192;
 /// before the next iteration. This collapses what would otherwise be roughly
 /// `40 * T` host-side dispatches into a single kernel launch.
 ///
-/// Impossible alignments are represented as `F::NEG_INFINITY` so that when an
-/// entire sequence has no valid alignment (e.g. `target_length > input_length`)
-/// the forward loss comes out as `+inf`, which is what `zero_infinity` masking
-/// in `burn-nn` detects via `is_inf`. Each `log_sum_exp` guards `mx == -inf`
-/// explicitly to avoid the `-inf - -inf = NaN` case that would otherwise
-/// propagate through the recursion.
+/// Impossible alignments use a large finite negative sentinel (`-6.0e4`)
+/// rather than true `-inf`, because WGSL rejects `f32(-inf)` as an identifier
+/// and f16's range caps at ~65504. The recurrence treats values below a
+/// threshold (`-1.0e4`) as unreachable. If an entire sequence has no valid
+/// alignment (e.g. `target_length > input_length`), the kernel synthesizes
+/// `+inf` in the output so downstream `zero_infinity` masking in `burn-nn`
+/// can detect it via `is_inf`.
 #[cube(launch)]
 fn ctc_loss_kernel<F: Float, I: Numeric>(
     log_probs: &Tensor<F>,      // [T, N, C]
