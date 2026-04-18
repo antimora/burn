@@ -414,12 +414,12 @@ fn rfft_with_n_smaller_than_signal() {
 
 #[test]
 fn rfft_with_non_power_of_two_n() {
-    // n=5 rounds up to fft_size=8, output trimmed to 5/2+1=3 bins
+    // n=5 rounds up to fft_size=8, output has fft_size/2+1=5 bins
     let signal = TestTensor::<1>::from([1.0, 1.0, 1.0, 1.0, 1.0]);
     let (re, im) = rfft(signal, 0, Some(5));
 
-    assert_eq!(re.dims(), [3]); // 5/2+1 = 3
-    assert_eq!(im.dims(), [3]);
+    assert_eq!(re.dims(), [5]); // 8/2+1 = 5
+    assert_eq!(im.dims(), [5]);
 
     // DC bin = sum of all ones = 5.0
     let re_data = re.into_data();
@@ -429,6 +429,17 @@ fn rfft_with_non_power_of_two_n() {
         "DC bin should be 5.0, got {}",
         re_vals[0]
     );
+}
+
+#[test]
+fn rfft_irfft_roundtrip_non_power_of_two() {
+    let signal = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    let (re, im) = rfft(signal.clone(), 0, Some(6));
+    let reconstructed = irfft(re, im, 0, Some(6));
+
+    reconstructed
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&signal.into_data(), Tolerance::absolute(1e-3));
 }
 
 #[test]

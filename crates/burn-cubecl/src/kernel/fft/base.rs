@@ -78,16 +78,7 @@ pub fn rfft<R: CubeRuntime>(
     )
     .expect("rfft kernel launch failed");
 
-    let n_out = requested_n / 2 + 1;
-    let fft_out = fft_size / 2 + 1;
-    if fft_out > n_out {
-        (
-            pad_to_length(output_re, dim, n_out),
-            pad_to_length(output_im, dim, n_out),
-        )
-    } else {
-        (output_re, output_im)
-    }
+    (output_re, output_im)
 }
 
 /// Launch the irfft kernel with optional padding for non-power-of-two sizes.

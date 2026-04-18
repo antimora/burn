@@ -99,10 +99,13 @@ pub fn stft<B: Backend>(
 
     let (re, im) = rfft(flat, 1, Some(n_fft));
 
-    let n_freqs_onesided = n_fft / 2 + 1;
+    let n_freqs_actual = re.dims()[1];
     let (re, im, n_freqs) = if onesided {
-        (re, im, n_freqs_onesided)
+        (re, im, n_freqs_actual)
     } else {
+        let half = n_fft / 2 + 1;
+        let re = if n_freqs_actual > half { re.narrow(1, 0, half) } else { re };
+        let im = if n_freqs_actual > half { im.narrow(1, 0, half) } else { im };
         let (re_full, im_full) = reconstruct_full_spectrum(re, im, n_fft);
         (re_full, im_full, n_fft)
     };
@@ -226,13 +229,13 @@ pub fn istft<B: Backend>(
     let mut window_sum = Tensor::<B, 2>::zeros([batch, expected_len], &device);
 
     let window_sq: Tensor<B, 3> = window_3d.clone().mul(window_3d);
-    let win_frame: Tensor<B, 2> = window_sq
-        .expand([batch as i64, 1, n_fft as i64])
-        .squeeze_dim(1);
 
     for f in 0..n_frames {
         let start = f * hop_length;
         let frame: Tensor<B, 2> = windowed.clone().narrow(1, f, 1).squeeze_dim(1);
+        let win_frame: Tensor<B, 2> = window_sq.clone().narrow(1, 0, 1)
+            .expand([batch as i64, 1, n_fft as i64])
+            .squeeze_dim(1);
 
         let ranges: [Range<usize>; 2] = [0..batch, start..start + n_fft];
         let current = output.clone().slice(ranges.clone());
@@ -242,7 +245,7 @@ pub fn istft<B: Backend>(
         let current_win = window_sum.clone().slice(ranges.clone());
         window_sum = window_sum
             .clone()
-            .slice_assign(ranges, current_win.add(win_frame.clone()));
+            .slice_assign(ranges, current_win.add(win_frame));
     }
 
     let window_sum = window_sum.clamp_min(1e-10);

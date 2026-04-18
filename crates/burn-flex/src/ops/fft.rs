@@ -909,12 +909,7 @@ pub fn rfft_f32(tensor: FlexTensor, dim: usize, n: Option<usize>) -> (FlexTensor
         }
 
         let (re, im) = make_tensors_typed(re_out, im_out, out_shape);
-        let trim_to = requested_n / 2 + 1;
-        return if trim_to < out_len {
-            (re.narrow(dim, 0, trim_to), im.narrow(dim, 0, trim_to))
-        } else {
-            (re, im)
-        };
+        return (re, im);
     }
 
     let mut z_re_buf = vec![0.0f32; half.max(1)];
@@ -947,12 +942,7 @@ pub fn rfft_f32(tensor: FlexTensor, dim: usize, n: Option<usize>) -> (FlexTensor
     }
 
     let (re, im) = make_tensors_typed(re_out, im_out, out_shape);
-    let trim_to = requested_n / 2 + 1;
-    if trim_to < out_len {
-        (re.narrow(dim, 0, trim_to), im.narrow(dim, 0, trim_to))
-    } else {
-        (re, im)
-    }
+    (re, im)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1121,12 +1111,7 @@ pub fn rfft_f64(tensor: FlexTensor, dim: usize, n: Option<usize>) -> (FlexTensor
         }
 
         let (re, im) = make_tensors_typed(re_out, im_out, out_shape);
-        let trim_to = requested_n / 2 + 1;
-        return if trim_to < out_len {
-            (re.narrow(dim, 0, trim_to), im.narrow(dim, 0, trim_to))
-        } else {
-            (re, im)
-        };
+        return (re, im);
     }
 
     let mut z_re = vec![0.0f64; half.max(1)];
@@ -1162,12 +1147,7 @@ pub fn rfft_f64(tensor: FlexTensor, dim: usize, n: Option<usize>) -> (FlexTensor
     }
 
     let (re, im) = make_tensors_typed(re_out, im_out, out_shape);
-    let trim_to = requested_n / 2 + 1;
-    if trim_to < out_len {
-        (re.narrow(dim, 0, trim_to), im.narrow(dim, 0, trim_to))
-    } else {
-        (re, im)
-    }
+    (re, im)
 }
 
 /// f64 complex FFT using f32 twiddle table (widened in inner loop).
