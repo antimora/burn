@@ -1,5 +1,4 @@
 use alloc::vec;
-use core::ops::Range;
 
 use burn_backend::Backend;
 
@@ -236,26 +235,21 @@ pub fn istft<B: Backend>(
     let mut output = Tensor::<B, 2>::zeros([batch, expected_len], &device);
     let mut window_sum = Tensor::<B, 2>::zeros([batch, expected_len], &device);
 
-    let window_sq: Tensor<B, 3> = window_3d.clone().mul(window_3d);
+    let window_1d: Tensor<B, 1> = window_3d.clone().reshape([n_fft]);
+    let window_sq_1d: Tensor<B, 1> = window_1d.clone().mul(window_1d);
 
     for f in 0..n_frames {
         let start = f * hop_length;
+        let right_pad = expected_len - n_fft - start;
         let frame: Tensor<B, 2> = windowed.clone().narrow(1, f, 1).squeeze_dim(1);
-        let win_frame: Tensor<B, 2> = window_sq
-            .clone()
-            .narrow(1, 0, 1)
-            .expand([batch as i64, 1, n_fft as i64])
-            .squeeze_dim(1);
+        let frame_full = frame.pad([(0, 0), (start, right_pad)], PadMode::Constant(0.0));
+        output = output.add(frame_full);
 
-        let ranges: [Range<usize>; 2] = [0..batch, start..start + n_fft];
-        let current = output.clone().slice(ranges.clone());
-        output = output
+        let win_full: Tensor<B, 1> = window_sq_1d
             .clone()
-            .slice_assign(ranges.clone(), current.add(frame));
-        let current_win = window_sum.clone().slice(ranges.clone());
-        window_sum = window_sum
-            .clone()
-            .slice_assign(ranges, current_win.add(win_frame));
+            .pad([(start, right_pad)], PadMode::Constant(0.0));
+        let win_full: Tensor<B, 2> = win_full.unsqueeze_dim(0);
+        window_sum = window_sum.add(win_full);
     }
 
     let window_sum = window_sum.clamp_min(1e-10);
