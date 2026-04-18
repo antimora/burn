@@ -787,8 +787,16 @@ fn rfft_fiber(
         for k in 0..half {
             let even = 2 * k;
             let odd = 2 * k + 1;
-            z_re[k] = if even < sig_len { signal[even * in_stride] } else { 0.0 };
-            z_im[k] = if odd < sig_len { signal[odd * in_stride] } else { 0.0 };
+            z_re[k] = if even < sig_len {
+                signal[even * in_stride]
+            } else {
+                0.0
+            };
+            z_im[k] = if odd < sig_len {
+                signal[odd * in_stride]
+            } else {
+                0.0
+            };
         }
     }
 
@@ -979,8 +987,16 @@ fn rfft_fiber_f64(
         for k in 0..half {
             let even = 2 * k;
             let odd = 2 * k + 1;
-            z_re[k] = if even < sig_len { signal[even * in_stride] } else { 0.0 };
-            z_im[k] = if odd < sig_len { signal[odd * in_stride] } else { 0.0 };
+            z_re[k] = if even < sig_len {
+                signal[even * in_stride]
+            } else {
+                0.0
+            };
+            z_im[k] = if odd < sig_len {
+                signal[odd * in_stride]
+            } else {
+                0.0
+            };
         }
     }
 
@@ -1334,8 +1350,16 @@ fn irfft_fiber(
         }
     } else {
         for k in 0..=half {
-            spec_re[k] = if k < spec_bins { re_in[k * in_stride] } else { 0.0 };
-            spec_im[k] = if k < spec_bins { im_in[k * in_stride] } else { 0.0 };
+            spec_re[k] = if k < spec_bins {
+                re_in[k * in_stride]
+            } else {
+                0.0
+            };
+            spec_im[k] = if k < spec_bins {
+                im_in[k * in_stride]
+            } else {
+                0.0
+            };
         }
     }
 

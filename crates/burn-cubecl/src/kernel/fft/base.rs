@@ -2,7 +2,7 @@ use crate::kernel::index::slice;
 use crate::ops::numeric::{empty_device_dtype, zeros};
 use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::{DType, TensorMetadata};
-use burn_std::{Shape, Slice};
+use burn_std::Slice;
 use cubecl::prelude::*;
 use cubek::fft::{irfft_launch, rfft_launch};
 

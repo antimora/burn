@@ -1613,10 +1613,9 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&spectrum_re, &spectrum_im]);
         let client = spectrum_re.client.clone();
 
-        let desc =
-            IRfftOpIr::create(spectrum_re.into_ir(), spectrum_im.into_ir(), dim, n, || {
-                client.create_empty_handle()
-            });
+        let desc = IRfftOpIr::create(spectrum_re.into_ir(), spectrum_im.into_ir(), dim, n, || {
+            client.create_empty_handle()
+        });
 
         let mut outputs = client
             .register(

@@ -1,6 +1,6 @@
 use super::*;
-use burn_tensor::signal::{StftOptions, hann_window, istft, stft};
 use burn_tensor::Tolerance;
+use burn_tensor::signal::{StftOptions, hann_window, istft, stft};
 
 fn opts(n_fft: usize, hop_length: usize, center: bool, onesided: bool) -> StftOptions {
     StftOptions {
@@ -28,9 +28,17 @@ fn stft_constant_signal_rectangular_window() {
     let data = result.into_data();
     let values = data.to_vec::<f32>().unwrap();
     // [batch=0, frame=0, freq=0, re] = 4.0
-    assert!((values[0] - 4.0).abs() < 1e-4, "DC real should be 4.0, got {}", values[0]);
+    assert!(
+        (values[0] - 4.0).abs() < 1e-4,
+        "DC real should be 4.0, got {}",
+        values[0]
+    );
     // [batch=0, frame=0, freq=0, im] = 0.0
-    assert!(values[1].abs() < 1e-4, "DC imag should be 0.0, got {}", values[1]);
+    assert!(
+        values[1].abs() < 1e-4,
+        "DC imag should be 0.0, got {}",
+        values[1]
+    );
 }
 
 #[test]

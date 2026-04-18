@@ -424,7 +424,11 @@ fn rfft_with_non_power_of_two_n() {
     // DC bin = sum of all ones = 5.0
     let re_data = re.into_data();
     let re_vals = re_data.to_vec::<f32>().unwrap();
-    assert!((re_vals[0] - 5.0).abs() < 1e-3, "DC bin should be 5.0, got {}", re_vals[0]);
+    assert!(
+        (re_vals[0] - 5.0).abs() < 1e-3,
+        "DC bin should be 5.0, got {}",
+        re_vals[0]
+    );
 }
 
 #[test]
@@ -462,10 +466,7 @@ fn irfft_with_n_different_from_natural() {
 #[test]
 fn rfft_2d_with_n_padded() {
     // 2D tensor, rfft along dim=1 with n=8 (signal is length 4)
-    let signal = TestTensor::<2>::from([
-        [1.0, 0.0, 0.0, 0.0],
-        [1.0, 1.0, 1.0, 1.0],
-    ]);
+    let signal = TestTensor::<2>::from([[1.0, 0.0, 0.0, 0.0], [1.0, 1.0, 1.0, 1.0]]);
     let (re, im) = rfft(signal, 1, Some(8));
 
     // Output: 8/2+1=5 frequency bins
