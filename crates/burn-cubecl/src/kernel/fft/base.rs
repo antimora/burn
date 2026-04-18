@@ -29,7 +29,7 @@ fn pad_to_length<R: CubeRuntime>(
     }
     let mut padded_shape = shape.clone();
     padded_shape[dim] = target;
-    let padded = zeros::<R>(tensor.device.clone(), Shape::from(padded_shape), tensor.dtype);
+    let padded = zeros::<R>(tensor.device.clone(), padded_shape, tensor.dtype);
     let slices: Vec<Slice> = shape
         .iter()
         .enumerate()
