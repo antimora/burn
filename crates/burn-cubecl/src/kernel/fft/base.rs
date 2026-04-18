@@ -30,11 +30,7 @@ fn pad_to_length<R: CubeRuntime>(
     let mut padded_shape = shape.clone();
     padded_shape[dim] = target;
     let padded = zeros::<R>(tensor.device.clone(), padded_shape, tensor.dtype);
-    let slices: Vec<Slice> = shape
-        .iter()
-        .enumerate()
-        .map(|(i, &s)| Slice::from(if i == dim { 0..s } else { 0..s }))
-        .collect();
+    let slices: Vec<Slice> = shape.iter().map(|&s| Slice::from(0..s)).collect();
     crate::kernel::index::slice_assign::<R>(padded, &slices, tensor)
 }
 
