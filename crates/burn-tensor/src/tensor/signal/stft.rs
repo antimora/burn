@@ -8,42 +8,41 @@ use crate::ops::PadMode;
 
 use super::{irfft, rfft};
 
+/// Configuration shared by [`stft`] and [`istft`].
+#[derive(Debug, Clone)]
+pub struct StftOptions {
+    /// Size of each FFT frame (must be >= 1).
+    pub n_fft: usize,
+    /// Stride between successive frames (must be >= 1).
+    pub hop_length: usize,
+    /// Window length. If `Some(w)`, the window is center-padded to `n_fft`. Defaults to `n_fft`.
+    pub win_length: Option<usize>,
+    /// If `true`, the signal is reflect-padded by `n_fft / 2` on both sides before framing.
+    pub center: bool,
+    /// If `true` (typical for real input), uses only the first `n_fft/2 + 1` frequency bins.
+    pub onesided: bool,
+}
+
 /// Computes the Short-Time Fourier Transform (STFT).
 ///
 /// Splits the signal into overlapping windowed frames and computes the FFT on each.
-///
-/// # Arguments
-///
-/// * `signal` - Real-valued input tensor of shape `[batch, signal_length]`.
-/// * `n_fft` - Size of each FFT frame (must be >= 1).
-/// * `hop_length` - Stride between successive frames (must be >= 1).
-/// * `win_length` - Window length. If `Some(w)`, the window is center-padded to `n_fft`.
-///   Defaults to `n_fft`.
-/// * `window` - Optional 1-D window tensor. Defaults to a rectangular (all-ones) window.
-/// * `center` - If `true`, the signal is reflect-padded by `n_fft / 2` on both sides before
-///   framing.
-/// * `onesided` - If `true` (typical for real input), returns only the first `n_fft/2 + 1`
-///   frequency bins. If `false`, returns all `n_fft` bins.
 ///
 /// # Returns
 ///
 /// A tensor of shape `[batch, n_frames, n_freqs, 2]` where the last dimension holds
 /// `[real, imaginary]`.
-///
-/// # Panics
-///
-/// * If `n_fft == 0` or `hop_length == 0`.
-/// * If `win_length > n_fft`.
-/// * If `window` length != `win_length` (or `n_fft` when `win_length` is `None`).
 pub fn stft<B: Backend>(
     signal: Tensor<B, 2>,
-    n_fft: usize,
-    hop_length: usize,
-    win_length: Option<usize>,
     window: Option<Tensor<B, 1>>,
-    center: bool,
-    onesided: bool,
+    options: StftOptions,
 ) -> Tensor<B, 4> {
+    let StftOptions {
+        n_fft,
+        hop_length,
+        win_length,
+        center,
+        onesided,
+    } = options;
     assert!(n_fft >= 1, "n_fft must be >= 1, got {n_fft}");
     assert!(
         hop_length >= 1,
@@ -163,27 +162,26 @@ fn pad_window_to_n_fft<B: Backend>(
 /// # Arguments
 ///
 /// * `stft_matrix` - Complex STFT tensor of shape `[batch, n_frames, n_freqs, 2]`.
-/// * `n_fft` - FFT size used in the forward STFT.
-/// * `hop_length` - Hop length used in the forward STFT.
-/// * `win_length` - Window length used in the forward STFT. Defaults to `n_fft`.
 /// * `window` - Window tensor used in the forward STFT. Defaults to rectangular.
-/// * `center` - Whether centering was used in the forward STFT.
-/// * `onesided` - Whether the STFT is onesided.
 /// * `length` - Optional output signal length. If `None`, the length is inferred.
+/// * `options` - STFT configuration (must match the forward STFT).
 ///
 /// # Returns
 ///
 /// A real-valued tensor of shape `[batch, signal_length]`.
 pub fn istft<B: Backend>(
     stft_matrix: Tensor<B, 4>,
-    n_fft: usize,
-    hop_length: usize,
-    win_length: Option<usize>,
     window: Option<Tensor<B, 1>>,
-    center: bool,
-    onesided: bool,
     length: Option<usize>,
+    options: StftOptions,
 ) -> Tensor<B, 2> {
+    let StftOptions {
+        n_fft,
+        hop_length,
+        win_length,
+        center,
+        onesided,
+    } = options;
     let [batch, n_frames, _n_freqs, two] = stft_matrix.dims();
     assert_eq!(two, 2, "last dimension of stft_matrix must be 2 (real, imag)");
 

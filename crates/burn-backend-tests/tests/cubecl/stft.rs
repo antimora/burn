@@ -1,12 +1,22 @@
 use super::*;
-use burn_tensor::signal::{hann_window, istft, stft};
+use burn_tensor::signal::{StftOptions, hann_window, istft, stft};
 use burn_tensor::Tolerance;
+
+fn opts(n_fft: usize, hop_length: usize, center: bool, onesided: bool) -> StftOptions {
+    StftOptions {
+        n_fft,
+        hop_length,
+        win_length: None,
+        center,
+        onesided,
+    }
+}
 
 #[test]
 fn stft_constant_signal_rectangular_window() {
     // Constant signal with rectangular window: only DC bin should be non-zero
     let signal = TestTensor::<2>::from([[1.0, 1.0, 1.0, 1.0]]);
-    let result = stft(signal, 4, 1, None, None, false, true);
+    let result = stft(signal, None, opts(4, 1, false, true));
 
     let [batch, n_frames, n_freqs, two] = result.dims();
     assert_eq!(batch, 1);
@@ -26,7 +36,7 @@ fn stft_constant_signal_rectangular_window() {
 #[test]
 fn stft_output_shape_onesided() {
     let signal = TestTensor::<2>::from([[1.0; 16]]);
-    let result = stft(signal, 8, 4, None, None, false, true);
+    let result = stft(signal, None, opts(8, 4, false, true));
 
     let [batch, n_frames, n_freqs, two] = result.dims();
     assert_eq!(batch, 1);
@@ -38,7 +48,7 @@ fn stft_output_shape_onesided() {
 #[test]
 fn stft_output_shape_twosided() {
     let signal = TestTensor::<2>::from([[1.0; 16]]);
-    let result = stft(signal, 8, 4, None, None, false, false);
+    let result = stft(signal, None, opts(8, 4, false, false));
 
     let [batch, n_frames, n_freqs, two] = result.dims();
     assert_eq!(batch, 1);
@@ -51,7 +61,7 @@ fn stft_output_shape_twosided() {
 fn stft_center_padding() {
     // With center=true, signal is padded by n_fft/2 on both sides
     let signal = TestTensor::<2>::from([[1.0; 8]]);
-    let result = stft(signal, 4, 2, None, None, true, true);
+    let result = stft(signal, None, opts(4, 2, true, true));
 
     // After padding: 2 + 8 + 2 = 12 samples
     // n_frames = (12 - 4) / 2 + 1 = 5
@@ -63,7 +73,7 @@ fn stft_center_padding() {
 fn stft_with_hann_window() {
     let signal = TestTensor::<2>::from([[1.0; 8]]);
     let window: TestTensor<1> = hann_window(4, true, &Default::default());
-    let result = stft(signal, 4, 2, None, Some(window), false, true);
+    let result = stft(signal, Some(window), opts(4, 2, false, true));
 
     let [batch, n_frames, n_freqs, two] = result.dims();
     assert_eq!(batch, 1);
@@ -75,7 +85,7 @@ fn stft_with_hann_window() {
 #[test]
 fn stft_batch_dimension() {
     let signal = TestTensor::<2>::from([[1.0; 8], [2.0; 8]]);
-    let result = stft(signal, 4, 2, None, None, false, true);
+    let result = stft(signal, None, opts(4, 2, false, true));
 
     let [batch, _, _, _] = result.dims();
     assert_eq!(batch, 2);
@@ -87,16 +97,9 @@ fn stft_istft_roundtrip_rectangular() {
     let n_fft = 4;
     let hop_length = 2;
 
-    let spectrum = stft(
-        original.clone(),
-        n_fft,
-        hop_length,
-        None,
-        None,
-        false,
-        true,
-    );
-    let reconstructed = istft(spectrum, n_fft, hop_length, None, None, false, true, Some(8));
+    let o = opts(n_fft, hop_length, false, true);
+    let spectrum = stft(original.clone(), None, o.clone());
+    let reconstructed = istft(spectrum, None, Some(8), o);
 
     reconstructed
         .into_data()
@@ -109,25 +112,9 @@ fn stft_istft_roundtrip_centered() {
     let n_fft = 4;
     let hop_length = 2;
 
-    let spectrum = stft(
-        original.clone(),
-        n_fft,
-        hop_length,
-        None,
-        None,
-        true,
-        true,
-    );
-    let reconstructed = istft(
-        spectrum,
-        n_fft,
-        hop_length,
-        None,
-        None,
-        true,
-        true,
-        Some(8),
-    );
+    let o = opts(n_fft, hop_length, true, true);
+    let spectrum = stft(original.clone(), None, o.clone());
+    let reconstructed = istft(spectrum, None, Some(8), o);
 
     reconstructed
         .into_data()
@@ -141,27 +128,11 @@ fn stft_istft_roundtrip_hann_window() {
     let hop_length = 1;
 
     let window: TestTensor<1> = hann_window(4, true, &Default::default());
+    let o = opts(n_fft, hop_length, true, true);
 
     // center=true is required with Hann windows to avoid edge effects from window zeros
-    let spectrum = stft(
-        original.clone(),
-        n_fft,
-        hop_length,
-        None,
-        Some(window.clone()),
-        true,
-        true,
-    );
-    let reconstructed = istft(
-        spectrum,
-        n_fft,
-        hop_length,
-        None,
-        Some(window),
-        true,
-        true,
-        Some(8),
-    );
+    let spectrum = stft(original.clone(), Some(window.clone()), o.clone());
+    let reconstructed = istft(spectrum, Some(window), Some(8), o);
 
     reconstructed
         .into_data()
@@ -174,25 +145,9 @@ fn stft_istft_roundtrip_twosided() {
     let n_fft = 4;
     let hop_length = 2;
 
-    let spectrum = stft(
-        original.clone(),
-        n_fft,
-        hop_length,
-        None,
-        None,
-        false,
-        false,
-    );
-    let reconstructed = istft(
-        spectrum,
-        n_fft,
-        hop_length,
-        None,
-        None,
-        false,
-        false,
-        Some(8),
-    );
+    let o = opts(n_fft, hop_length, false, false);
+    let spectrum = stft(original.clone(), None, o.clone());
+    let reconstructed = istft(spectrum, None, Some(8), o);
 
     reconstructed
         .into_data()
@@ -208,16 +163,9 @@ fn stft_istft_roundtrip_batch() {
     let n_fft = 4;
     let hop_length = 2;
 
-    let spectrum = stft(
-        original.clone(),
-        n_fft,
-        hop_length,
-        None,
-        None,
-        false,
-        true,
-    );
-    let reconstructed = istft(spectrum, n_fft, hop_length, None, None, false, true, Some(8));
+    let o = opts(n_fft, hop_length, false, true);
+    let spectrum = stft(original.clone(), None, o.clone());
+    let reconstructed = istft(spectrum, None, Some(8), o);
 
     reconstructed
         .into_data()
