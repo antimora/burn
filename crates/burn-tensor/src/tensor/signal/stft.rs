@@ -104,8 +104,16 @@ pub fn stft<B: Backend>(
         (re, im, n_freqs_actual)
     } else {
         let half = n_fft / 2 + 1;
-        let re = if n_freqs_actual > half { re.narrow(1, 0, half) } else { re };
-        let im = if n_freqs_actual > half { im.narrow(1, 0, half) } else { im };
+        let re = if n_freqs_actual > half {
+            re.narrow(1, 0, half)
+        } else {
+            re
+        };
+        let im = if n_freqs_actual > half {
+            im.narrow(1, 0, half)
+        } else {
+            im
+        };
         let (re_full, im_full) = reconstruct_full_spectrum(re, im, n_fft);
         (re_full, im_full, n_fft)
     };
@@ -233,7 +241,9 @@ pub fn istft<B: Backend>(
     for f in 0..n_frames {
         let start = f * hop_length;
         let frame: Tensor<B, 2> = windowed.clone().narrow(1, f, 1).squeeze_dim(1);
-        let win_frame: Tensor<B, 2> = window_sq.clone().narrow(1, 0, 1)
+        let win_frame: Tensor<B, 2> = window_sq
+            .clone()
+            .narrow(1, 0, 1)
             .expand([batch as i64, 1, n_fft as i64])
             .squeeze_dim(1);
 

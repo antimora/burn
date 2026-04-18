@@ -180,8 +180,7 @@ fn stft_istft_roundtrip_hann_window() {
 
 #[test]
 fn stft_istft_roundtrip_non_power_of_two_nfft() {
-    let original =
-        TestTensor::<2>::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]]);
+    let original = TestTensor::<2>::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]]);
     let n_fft = 5;
     let hop_length = 1;
 
@@ -193,4 +192,3 @@ fn stft_istft_roundtrip_non_power_of_two_nfft() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&original.into_data(), Tolerance::absolute(1e-3));
 }
-
