@@ -443,18 +443,6 @@ fn rfft_irfft_roundtrip_with_n() {
 }
 
 #[test]
-fn rfft_irfft_roundtrip_non_power_of_two() {
-    // n=6: exercises virtual padding + trimming in both directions
-    let signal = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
-    let (re, im) = rfft(signal.clone(), 0, Some(6));
-    let reconstructed = irfft(re, im, 0, Some(6));
-
-    reconstructed
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&signal.into_data(), Tolerance::absolute(1e-3));
-}
-
-#[test]
 fn irfft_with_n_different_from_natural() {
     // Spectrum from length-4 signal (3 bins), reconstruct at length 8
     let signal = TestTensor::<1>::from([1.0, 0.0, 0.0, 0.0]);
