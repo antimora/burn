@@ -794,7 +794,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
+    fn rfft(
+        _signal: FloatTensor<Self>,
+        _dim: usize,
+        _n: Option<usize>,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
         todo!("rfft is not supported for backend-router")
     }
 
@@ -802,6 +806,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         _spectrum_re: FloatTensor<Self>,
         _spectrum_im: FloatTensor<Self>,
         _dim: usize,
+        _n: Option<usize>,
     ) -> FloatTensor<Self> {
         todo!("irfft is not supported for backend-router")
     }

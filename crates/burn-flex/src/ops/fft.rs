@@ -755,6 +755,7 @@ fn rfft_fiber(
     signal: &[f32],
     in_stride: usize,
     n: usize,
+    sig_len: usize,
     out_re: &mut [f32],
     out_im: &mut [f32],
     tw_half: &TwiddleRef,
@@ -766,20 +767,29 @@ fn rfft_fiber(
     let half = n / 2;
 
     if n == 1 {
-        out_re[0] = signal[0];
+        out_re[0] = if sig_len >= 1 { signal[0] } else { 0.0 };
         out_im[0] = 0.0;
         return;
     }
 
-    if in_stride == 1 {
-        for k in 0..half {
-            z_re[k] = signal[2 * k];
-            z_im[k] = signal[2 * k + 1];
+    if sig_len >= n {
+        if in_stride == 1 {
+            for k in 0..half {
+                z_re[k] = signal[2 * k];
+                z_im[k] = signal[2 * k + 1];
+            }
+        } else {
+            for k in 0..half {
+                z_re[k] = signal[(2 * k) * in_stride];
+                z_im[k] = signal[(2 * k + 1) * in_stride];
+            }
         }
     } else {
         for k in 0..half {
-            z_re[k] = signal[(2 * k) * in_stride];
-            z_im[k] = signal[(2 * k + 1) * in_stride];
+            let even = 2 * k;
+            let odd = 2 * k + 1;
+            z_re[k] = if even < sig_len { signal[even * in_stride] } else { 0.0 };
+            z_im[k] = if odd < sig_len { signal[odd * in_stride] } else { 0.0 };
         }
     }
 
@@ -787,7 +797,7 @@ fn rfft_fiber(
     unpack_rfft(z_re, z_im, half, unpack_tw_re, unpack_tw_im, out_re, out_im);
 }
 
-pub fn rfft_f32(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
+pub fn rfft_f32(tensor: FlexTensor, dim: usize, n: Option<usize>) -> (FlexTensor, FlexTensor) {
     let tensor = tensor.to_contiguous();
     let shape = tensor.layout().shape().clone();
     assert!(
@@ -795,18 +805,26 @@ pub fn rfft_f32(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
         "rfft: dim {dim} out of bounds for {}-D tensor",
         shape.num_dims()
     );
-    let n = shape[dim];
-    assert!(
-        n > 0 && n.is_power_of_two(),
-        "rfft: dimension size must be a power of 2, got {n}"
-    );
+
+    let requested_n = n.unwrap_or_else(|| {
+        let sig_len = shape[dim];
+        assert!(
+            sig_len > 0 && sig_len.is_power_of_two(),
+            "rfft: dimension size must be a power of 2, got {sig_len}"
+        );
+        sig_len
+    });
+    let fft_size = requested_n.next_power_of_two();
+    let sig_len = shape[dim].min(requested_n);
+
+    let n = fft_size;
     let out_len = n / 2 + 1;
 
     let mut out_dims: Vec<usize> = shape.as_slice().to_vec();
     out_dims[dim] = out_len;
     let out_shape = Shape::from(out_dims);
     let total_out = out_shape.num_elements();
-    let num_fibers = shape.num_elements() / n;
+    let num_fibers = shape.num_elements() / shape[dim];
 
     let data: &[f32] = tensor.storage();
     let in_strides = contiguous_strides_usize(&shape);
@@ -814,15 +832,21 @@ pub fn rfft_f32(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
 
     // N=1: each element is its own DFT, no twiddles needed
     if n == 1 {
-        let re_out: Vec<f32> = data.to_vec();
+        let mut re_out = vec![0.0f32; total_out];
         let im_out = vec![0.0f32; total_out];
+        if sig_len >= 1 {
+            for fiber_idx in 0..num_fibers {
+                let base = slice_base_offset(fiber_idx, &shape, &in_strides, dim);
+                let out_base = slice_base_offset(fiber_idx, &out_shape, &out_strides, dim);
+                re_out[out_base] = data[base];
+            }
+        }
         return make_tensors_typed(re_out, im_out, out_shape);
     }
 
     let half = n / 2;
     let tw_half = get_twiddles(half);
 
-    // Unpacking twiddles: last stage of size-N twiddle table = W_N^k for k=0..N/2-1
     let tw_full = get_twiddles(n);
     let full_offsets = tw_full.offsets();
     let last_stage_off = if full_offsets.len() >= 2 {
@@ -856,6 +880,7 @@ pub fn rfft_f32(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
                     &data[base_offset..],
                     in_stride,
                     n,
+                    sig_len,
                     &mut fiber_re,
                     &mut fiber_im,
                     &tw_half,
@@ -876,7 +901,13 @@ pub fn rfft_f32(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
             }
         }
 
-        return make_tensors_typed(re_out, im_out, out_shape);
+        let (re, im) = make_tensors_typed(re_out, im_out, out_shape);
+        let trim_to = requested_n / 2 + 1;
+        return if trim_to < out_len {
+            (re.narrow(dim, 0, trim_to), im.narrow(dim, 0, trim_to))
+        } else {
+            (re, im)
+        };
     }
 
     let mut z_re_buf = vec![0.0f32; half.max(1)];
@@ -892,6 +923,7 @@ pub fn rfft_f32(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
             &data[base_offset..],
             in_stride,
             n,
+            sig_len,
             &mut fiber_re,
             &mut fiber_im,
             &tw_half,
@@ -907,7 +939,13 @@ pub fn rfft_f32(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
         }
     }
 
-    make_tensors_typed(re_out, im_out, out_shape)
+    let (re, im) = make_tensors_typed(re_out, im_out, out_shape);
+    let trim_to = requested_n / 2 + 1;
+    if trim_to < out_len {
+        (re.narrow(dim, 0, trim_to), im.narrow(dim, 0, trim_to))
+    } else {
+        (re, im)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -915,6 +953,7 @@ fn rfft_fiber_f64(
     signal: &[f64],
     in_stride: usize,
     n: usize,
+    sig_len: usize,
     half: usize,
     out_re: &mut [f64],
     out_im: &mut [f64],
@@ -927,14 +966,23 @@ fn rfft_fiber_f64(
     z_im: &mut [f64],
 ) {
     if n == 1 {
-        out_re[0] = signal[0];
+        out_re[0] = if sig_len >= 1 { signal[0] } else { 0.0 };
         out_im[0] = 0.0;
         return;
     }
 
-    for k in 0..half {
-        z_re[k] = signal[(2 * k) * in_stride];
-        z_im[k] = signal[(2 * k + 1) * in_stride];
+    if sig_len >= n {
+        for k in 0..half {
+            z_re[k] = signal[(2 * k) * in_stride];
+            z_im[k] = signal[(2 * k + 1) * in_stride];
+        }
+    } else {
+        for k in 0..half {
+            let even = 2 * k;
+            let odd = 2 * k + 1;
+            z_re[k] = if even < sig_len { signal[even * in_stride] } else { 0.0 };
+            z_im[k] = if odd < sig_len { signal[odd * in_stride] } else { 0.0 };
+        }
     }
 
     fft_f64_inplace(z_re, z_im, half, tw_re, tw_im, tw_offsets);
@@ -962,7 +1010,7 @@ fn rfft_fiber_f64(
     }
 }
 
-pub fn rfft_f64(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
+pub fn rfft_f64(tensor: FlexTensor, dim: usize, n: Option<usize>) -> (FlexTensor, FlexTensor) {
     let tensor = tensor.to_contiguous();
     let shape = tensor.layout().shape().clone();
     assert!(
@@ -970,25 +1018,32 @@ pub fn rfft_f64(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
         "rfft: dim {dim} out of bounds for {}-D tensor",
         shape.num_dims()
     );
-    let n = shape[dim];
-    assert!(
-        n > 0 && n.is_power_of_two(),
-        "rfft: dimension size must be a power of 2, got {n}"
-    );
+
+    let requested_n = n.unwrap_or_else(|| {
+        let sig_len = shape[dim];
+        assert!(
+            sig_len > 0 && sig_len.is_power_of_two(),
+            "rfft: dimension size must be a power of 2, got {sig_len}"
+        );
+        sig_len
+    });
+    let fft_size = requested_n.next_power_of_two();
+    let sig_len = shape[dim].min(requested_n);
+
+    let n = fft_size;
     let out_len = n / 2 + 1;
 
     let mut out_dims: Vec<usize> = shape.as_slice().to_vec();
     out_dims[dim] = out_len;
     let out_shape = Shape::from(out_dims);
     let total_out = out_shape.num_elements();
-    let num_fibers = shape.num_elements() / n;
+    let num_fibers = shape.num_elements() / shape[dim];
 
     let data: &[f64] = tensor.storage();
     let in_strides = contiguous_strides_usize(&shape);
     let out_strides = contiguous_strides_usize(&out_shape);
     let half = n / 2;
 
-    // Use f32 twiddles widened to f64
     let tw_half = get_twiddles(half);
     let tw_full = get_twiddles(n);
     let full_offsets = tw_full.offsets();
@@ -1026,6 +1081,7 @@ pub fn rfft_f64(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
                     &data[base_offset..],
                     in_stride,
                     n,
+                    sig_len,
                     half,
                     &mut fiber_re,
                     &mut fiber_im,
@@ -1049,7 +1105,13 @@ pub fn rfft_f64(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
             }
         }
 
-        return make_tensors_typed(re_out, im_out, out_shape);
+        let (re, im) = make_tensors_typed(re_out, im_out, out_shape);
+        let trim_to = requested_n / 2 + 1;
+        return if trim_to < out_len {
+            (re.narrow(dim, 0, trim_to), im.narrow(dim, 0, trim_to))
+        } else {
+            (re, im)
+        };
     }
 
     let mut z_re = vec![0.0f64; half.max(1)];
@@ -1065,6 +1127,7 @@ pub fn rfft_f64(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
             &data[base_offset..],
             in_stride,
             n,
+            sig_len,
             half,
             &mut fiber_re,
             &mut fiber_im,
@@ -1083,7 +1146,13 @@ pub fn rfft_f64(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
         }
     }
 
-    make_tensors_typed(re_out, im_out, out_shape)
+    let (re, im) = make_tensors_typed(re_out, im_out, out_shape);
+    let trim_to = requested_n / 2 + 1;
+    if trim_to < out_len {
+        (re.narrow(dim, 0, trim_to), im.narrow(dim, 0, trim_to))
+    } else {
+        (re, im)
+    }
 }
 
 /// f64 complex FFT using f32 twiddle table (widened in inner loop).
@@ -1141,20 +1210,20 @@ fn fft_f64_inplace(
     }
 }
 
-pub fn rfft_f16(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
+pub fn rfft_f16(tensor: FlexTensor, dim: usize, n: Option<usize>) -> (FlexTensor, FlexTensor) {
     use burn_std::f16;
     let tensor = super::module::cast_to_f32(tensor, f16::to_f32);
-    let (re, im) = rfft_f32(tensor, dim);
+    let (re, im) = rfft_f32(tensor, dim, n);
     (
         super::module::cast_from_f32(re, f16::from_f32),
         super::module::cast_from_f32(im, f16::from_f32),
     )
 }
 
-pub fn rfft_bf16(tensor: FlexTensor, dim: usize) -> (FlexTensor, FlexTensor) {
+pub fn rfft_bf16(tensor: FlexTensor, dim: usize, n: Option<usize>) -> (FlexTensor, FlexTensor) {
     use burn_std::bf16;
     let tensor = super::module::cast_to_f32(tensor, bf16::to_f32);
-    let (re, im) = rfft_f32(tensor, dim);
+    let (re, im) = rfft_f32(tensor, dim, n);
     (
         super::module::cast_from_f32(re, bf16::from_f32),
         super::module::cast_from_f32(im, bf16::from_f32),
@@ -1248,6 +1317,7 @@ fn irfft_fiber(
     im_in: &[f32],
     in_stride: usize,
     half: usize,
+    spec_bins: usize,
     signal_out: &mut [f32],
     out_stride: usize,
     tw_half: &TwiddleRef,
@@ -1258,9 +1328,16 @@ fn irfft_fiber(
     spec_re: &mut [f32],
     spec_im: &mut [f32],
 ) {
-    for k in 0..=half {
-        spec_re[k] = re_in[k * in_stride];
-        spec_im[k] = im_in[k * in_stride];
+    if spec_bins > half {
+        for k in 0..=half {
+            spec_re[k] = re_in[k * in_stride];
+            spec_im[k] = im_in[k * in_stride];
+        }
+    } else {
+        for k in 0..=half {
+            spec_re[k] = if k < spec_bins { re_in[k * in_stride] } else { 0.0 };
+            spec_im[k] = if k < spec_bins { im_in[k * in_stride] } else { 0.0 };
+        }
     }
 
     repack_irfft(
@@ -1290,7 +1367,12 @@ fn irfft_fiber(
     }
 }
 
-pub fn irfft_f32(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) -> FlexTensor {
+pub fn irfft_f32(
+    spectrum_re: FlexTensor,
+    spectrum_im: FlexTensor,
+    dim: usize,
+    n: Option<usize>,
+) -> FlexTensor {
     let spectrum_re = spectrum_re.to_contiguous();
     let spectrum_im = spectrum_im.to_contiguous();
     let shape = spectrum_re.layout().shape().clone();
@@ -1309,8 +1391,20 @@ pub fn irfft_f32(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) -
         "irfft: spectrum dimension cannot be empty"
     );
 
+    let spec_bins = half_plus_1;
+
+    let requested_n = n.unwrap_or_else(|| {
+        let sig_len = (half_plus_1 - 1) * 2;
+        assert!(
+            sig_len.is_power_of_two(),
+            "irfft: reconstructed signal length must be a power of 2, got {sig_len}"
+        );
+        sig_len
+    });
+    let fft_size = requested_n.next_power_of_two();
+
     // N=1: single DC bin, output is just the real value
-    if half_plus_1 == 1 {
+    if fft_size <= 1 {
         let data: &[f32] = spectrum_re.storage();
         return FlexTensor::new(
             Bytes::from_elems(data.to_vec()),
@@ -1319,12 +1413,8 @@ pub fn irfft_f32(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) -
         );
     }
 
-    let half = half_plus_1 - 1;
-    let n = 2 * half;
-    assert!(
-        n.is_power_of_two(),
-        "irfft: reconstructed signal length must be a power of 2, got {n}"
-    );
+    let half = fft_size / 2;
+    let n = fft_size;
 
     let mut out_dims: Vec<usize> = shape.as_slice().to_vec();
     out_dims[dim] = n;
@@ -1374,6 +1464,7 @@ pub fn irfft_f32(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) -
                     &im_data[re_base..],
                     in_stride,
                     half,
+                    spec_bins,
                     &mut fiber_out,
                     1,
                     &tw_half,
@@ -1395,11 +1486,16 @@ pub fn irfft_f32(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) -
             }
         }
 
-        return FlexTensor::new(
+        let result = FlexTensor::new(
             Bytes::from_elems(signal_out),
             Layout::contiguous(out_shape),
             burn_backend::DType::F32,
         );
+        return if fft_size > requested_n {
+            result.narrow(dim, 0, requested_n)
+        } else {
+            result
+        };
     }
 
     let mut z_re = vec![0.0f32; half.max(1)];
@@ -1417,6 +1513,7 @@ pub fn irfft_f32(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) -
             &im_data[re_base..],
             in_stride,
             half,
+            spec_bins,
             &mut fiber_out,
             1,
             &tw_half,
@@ -1433,41 +1530,59 @@ pub fn irfft_f32(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) -
         }
     }
 
-    FlexTensor::new(
+    let result = FlexTensor::new(
         Bytes::from_elems(signal_out),
         Layout::contiguous(out_shape),
         burn_backend::DType::F32,
-    )
+    );
+    if fft_size > requested_n {
+        result.narrow(dim, 0, requested_n)
+    } else {
+        result
+    }
 }
 
-pub fn irfft_f64(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) -> FlexTensor {
-    // Truncates f64 to f32 for computation (unlike rfft_f64 which operates
-    // in f64). Output precision is limited to ~7 digits.
+pub fn irfft_f64(
+    spectrum_re: FlexTensor,
+    spectrum_im: FlexTensor,
+    dim: usize,
+    n: Option<usize>,
+) -> FlexTensor {
     use burn_backend::DType;
     match spectrum_re.dtype() {
         DType::F64 => {
             let re_f32 = super::module::cast_to_f32::<f64>(spectrum_re, |v| v as f32);
             let im_f32 = super::module::cast_to_f32::<f64>(spectrum_im, |v| v as f32);
-            let result = irfft_f32(re_f32, im_f32, dim);
+            let result = irfft_f32(re_f32, im_f32, dim, n);
             super::module::cast_from_f32::<f64>(result, |v| v as f64)
         }
-        _ => irfft_f32(spectrum_re, spectrum_im, dim),
+        _ => irfft_f32(spectrum_re, spectrum_im, dim, n),
     }
 }
 
-pub fn irfft_f16(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) -> FlexTensor {
+pub fn irfft_f16(
+    spectrum_re: FlexTensor,
+    spectrum_im: FlexTensor,
+    dim: usize,
+    n: Option<usize>,
+) -> FlexTensor {
     use burn_std::f16;
     let re = super::module::cast_to_f32(spectrum_re, f16::to_f32);
     let im = super::module::cast_to_f32(spectrum_im, f16::to_f32);
-    let result = irfft_f32(re, im, dim);
+    let result = irfft_f32(re, im, dim, n);
     super::module::cast_from_f32(result, f16::from_f32)
 }
 
-pub fn irfft_bf16(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) -> FlexTensor {
+pub fn irfft_bf16(
+    spectrum_re: FlexTensor,
+    spectrum_im: FlexTensor,
+    dim: usize,
+    n: Option<usize>,
+) -> FlexTensor {
     use burn_std::bf16;
     let re = super::module::cast_to_f32(spectrum_re, bf16::to_f32);
     let im = super::module::cast_to_f32(spectrum_im, bf16::to_f32);
-    let result = irfft_f32(re, im, dim);
+    let result = irfft_f32(re, im, dim, n);
     super::module::cast_from_f32(result, bf16::from_f32)
 }
 
@@ -1511,7 +1626,7 @@ mod tests {
     #[test]
     fn rfft_n1() {
         let signal = make_f32(vec![5.0], vec![1]);
-        let (re, im) = rfft_f32(signal, 0);
+        let (re, im) = rfft_f32(signal, 0, None);
         assert_approx(re, &[5.0], 1e-6);
         assert_approx(im, &[0.0], 1e-6);
     }
@@ -1521,7 +1636,7 @@ mod tests {
     #[test]
     fn rfft_n2() {
         let signal = make_f32(vec![1.0, -1.0], vec![2]);
-        let (re, im) = rfft_f32(signal, 0);
+        let (re, im) = rfft_f32(signal, 0, None);
         assert_approx(re, &[0.0, 2.0], 1e-6);
         assert_approx(im, &[0.0, 0.0], 1e-6);
     }
@@ -1531,7 +1646,7 @@ mod tests {
     #[test]
     fn rfft_n4_impulse() {
         let signal = make_f32(vec![1.0, 0.0, 0.0, 0.0], vec![4]);
-        let (re, im) = rfft_f32(signal, 0);
+        let (re, im) = rfft_f32(signal, 0, None);
         assert_approx(re, &[1.0, 1.0, 1.0], 1e-6);
         assert_approx(im, &[0.0, 0.0, 0.0], 1e-6);
     }
@@ -1541,7 +1656,7 @@ mod tests {
     #[test]
     fn rfft_n4_constant() {
         let signal = make_f32(vec![1.0, 1.0, 1.0, 1.0], vec![4]);
-        let (re, im) = rfft_f32(signal, 0);
+        let (re, im) = rfft_f32(signal, 0, None);
         assert_approx(re, &[4.0, 0.0, 0.0], 1e-6);
         assert_approx(im, &[0.0, 0.0, 0.0], 1e-6);
     }
@@ -1551,7 +1666,7 @@ mod tests {
     #[test]
     fn rfft_n4_zeros() {
         let signal = make_f32(vec![0.0; 4], vec![4]);
-        let (re, im) = rfft_f32(signal, 0);
+        let (re, im) = rfft_f32(signal, 0, None);
         assert_approx(re, &[0.0, 0.0, 0.0], 1e-6);
         assert_approx(im, &[0.0, 0.0, 0.0], 1e-6);
     }
@@ -1562,7 +1677,7 @@ mod tests {
     fn rfft_n8_impulse() {
         let mut signal = vec![0.0f32; 8];
         signal[0] = 1.0;
-        let (re, im) = rfft_f32(make_f32(signal, vec![8]), 0);
+        let (re, im) = rfft_f32(make_f32(signal, vec![8]), 0, None);
         // DFT of impulse is all 1s
         assert_approx(re, &[1.0, 1.0, 1.0, 1.0, 1.0], 1e-6);
         assert_approx(im, &[0.0, 0.0, 0.0, 0.0, 0.0], 1e-6);
@@ -1574,7 +1689,7 @@ mod tests {
         let signal: Vec<f32> = (0..8)
             .map(|k| (2.0 * std::f32::consts::PI * k as f32 / 8.0).cos())
             .collect();
-        let (re, im) = rfft_f32(make_f32(signal, vec![8]), 0);
+        let (re, im) = rfft_f32(make_f32(signal, vec![8]), 0, None);
         // Bin 1 should have amplitude 4 (real), rest ~0
         assert_approx(re, &[0.0, 4.0, 0.0, 0.0, 0.0], 1e-4);
         assert_approx(im, &[0.0, 0.0, 0.0, 0.0, 0.0], 1e-4);
@@ -1586,7 +1701,7 @@ mod tests {
     fn rfft_n256_impulse() {
         let mut signal = vec![0.0f32; 256];
         signal[0] = 1.0;
-        let (re, im) = rfft_f32(make_f32(signal, vec![256]), 0);
+        let (re, im) = rfft_f32(make_f32(signal, vec![256]), 0, None);
         let re_data = re.into_data();
         let im_data = im.into_data();
         let re_vals = re_data.as_slice::<f32>().unwrap();
@@ -1610,7 +1725,7 @@ mod tests {
             1.0, 1.0, 1.0, 1.0, // row 1: constant
         ];
         let signal = make_f32(data, vec![2, 4]);
-        let (re, im) = rfft_f32(signal, 1);
+        let (re, im) = rfft_f32(signal, 1, None);
         // Shape should be [2, 3]
         let re_data = re.into_data();
         let im_data = im.into_data();
@@ -1638,7 +1753,7 @@ mod tests {
         // 4 rows, 2 cols: impulse in each column
         let data = vec![1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
         let signal = make_f32(data, vec![4, 2]);
-        let (re, _im) = rfft_f32(signal, 0);
+        let (re, _im) = rfft_f32(signal, 0, None);
         // Shape should be [3, 2]
         let re_data = re.into_data();
         let re_vals = re_data.as_slice::<f32>().unwrap();
@@ -1654,7 +1769,7 @@ mod tests {
     #[test]
     fn rfft_f64_n4_impulse() {
         let signal = make_f64(vec![1.0, 0.0, 0.0, 0.0], vec![4]);
-        let (re, im) = rfft_f64(signal, 0);
+        let (re, im) = rfft_f64(signal, 0, None);
         assert_approx_f64(re, &[1.0, 1.0, 1.0], 1e-10);
         assert_approx_f64(im, &[0.0, 0.0, 0.0], 1e-10);
     }
@@ -1664,7 +1779,7 @@ mod tests {
         let signal: Vec<f64> = (0..8)
             .map(|k| (2.0 * std::f64::consts::PI * k as f64 / 8.0).cos())
             .collect();
-        let (re, im) = rfft_f64(make_f64(signal, vec![8]), 0);
+        let (re, im) = rfft_f64(make_f64(signal, vec![8]), 0, None);
         assert_approx_f64(re, &[0.0, 4.0, 0.0, 0.0, 0.0], 1e-6);
         assert_approx_f64(im, &[0.0, 0.0, 0.0, 0.0, 0.0], 1e-6);
     }
@@ -1685,7 +1800,7 @@ mod tests {
             Layout::contiguous(Shape::from(vec![4])),
             DType::F16,
         );
-        let (re, _im) = rfft_f16(signal, 0);
+        let (re, _im) = rfft_f16(signal, 0, None);
         // Verify via round-trip to f32
         let re_f32 = super::super::module::cast_to_f32(re, f16::to_f32);
         let re_data = re_f32.into_data();
@@ -1726,7 +1841,7 @@ mod tests {
         let signal: Vec<f32> = (0..n).map(|i| (i as f32 * 0.37).sin()).collect();
         let time_energy: f64 = signal.iter().map(|&x| (x as f64) * (x as f64)).sum();
 
-        let (re, im) = rfft_f32(make_f32(signal, vec![n]), 0);
+        let (re, im) = rfft_f32(make_f32(signal, vec![n]), 0, None);
         let re_data = re.into_data();
         let im_data = im.into_data();
         let re_vals = re_data.as_slice::<f32>().unwrap();
@@ -1757,8 +1872,8 @@ mod tests {
     #[test]
     fn irfft_roundtrip_n4() {
         let signal = make_f32(vec![1.0, 2.0, 3.0, 4.0], vec![4]);
-        let (re, im) = rfft_f32(signal.clone(), 0);
-        let reconstructed = irfft_f32(re, im, 0);
+        let (re, im) = rfft_f32(signal.clone(), 0, None);
+        let reconstructed = irfft_f32(re, im, 0, None);
         assert_approx(reconstructed, &[1.0, 2.0, 3.0, 4.0], 1e-5);
     }
 
@@ -1766,8 +1881,8 @@ mod tests {
     fn irfft_roundtrip_n8() {
         let data: Vec<f32> = (0..8).map(|i| (i as f32 * 0.3).sin()).collect();
         let signal = make_f32(data.clone(), vec![8]);
-        let (re, im) = rfft_f32(signal, 0);
-        let reconstructed = irfft_f32(re, im, 0);
+        let (re, im) = rfft_f32(signal, 0, None);
+        let reconstructed = irfft_f32(re, im, 0, None);
         assert_approx(reconstructed, &data, 1e-5);
     }
 
@@ -1784,7 +1899,7 @@ mod tests {
 
             // Our rfft
             let signal = make_f32(data.clone(), vec![n]);
-            let (re_out, im_out) = rfft_f32(signal, 0);
+            let (re_out, im_out) = rfft_f32(signal, 0, None);
             let re_data = re_out.into_data();
             let im_data = im_out.into_data();
             let our_re = re_data.as_slice::<f32>().unwrap();
@@ -1839,7 +1954,7 @@ mod tests {
             let spec_im: Vec<f32> = spectrum.iter().map(|c| c.im).collect();
             let re_tensor = make_f32(spec_re, vec![out_len]);
             let im_tensor = make_f32(spec_im, vec![out_len]);
-            let our_result = irfft_f32(re_tensor, im_tensor, 0);
+            let our_result = irfft_f32(re_tensor, im_tensor, 0, None);
             let our_data = our_result.into_data();
             let our_vals = our_data.as_slice::<f32>().unwrap();
 
@@ -1907,8 +2022,8 @@ mod tests {
     fn irfft_roundtrip_n256() {
         let data: Vec<f32> = (0..256).map(|i| (i as f32 * 0.1).cos()).collect();
         let signal = make_f32(data.clone(), vec![256]);
-        let (re, im) = rfft_f32(signal, 0);
-        let reconstructed = irfft_f32(re, im, 0);
+        let (re, im) = rfft_f32(signal, 0, None);
+        let reconstructed = irfft_f32(re, im, 0, None);
         let result = reconstructed.into_data();
         let vals = result.as_slice::<f32>().unwrap();
         let max_err = vals
@@ -1929,8 +2044,8 @@ mod tests {
             5.0, 6.0, 7.0, 8.0, // row 1
         ];
         let signal = make_f32(data.clone(), vec![2, 4]);
-        let (re, im) = rfft_f32(signal, 1);
-        let reconstructed = irfft_f32(re, im, 1);
+        let (re, im) = rfft_f32(signal, 1, None);
+        let reconstructed = irfft_f32(re, im, 1, None);
         assert_approx(reconstructed, &data, 1e-5);
     }
 
@@ -1938,8 +2053,8 @@ mod tests {
     fn irfft_roundtrip_2d_dim0() {
         let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
         let signal = make_f32(data.clone(), vec![4, 2]);
-        let (re, im) = rfft_f32(signal, 0);
-        let reconstructed = irfft_f32(re, im, 0);
+        let (re, im) = rfft_f32(signal, 0, None);
+        let reconstructed = irfft_f32(re, im, 0, None);
         assert_approx(reconstructed, &data, 1e-5);
     }
 
@@ -1948,7 +2063,7 @@ mod tests {
         // DC=4, all others zero -> constant signal [1,1,1,1]
         let re = make_f32(vec![4.0, 0.0, 0.0], vec![3]);
         let im = make_f32(vec![0.0, 0.0, 0.0], vec![3]);
-        let signal = irfft_f32(re, im, 0);
+        let signal = irfft_f32(re, im, 0, None);
         assert_approx(signal, &[1.0, 1.0, 1.0, 1.0], 1e-5);
     }
 
@@ -1957,8 +2072,8 @@ mod tests {
         // irfft_f64 truncates to f32 internally, so tolerance is f32-level
         let data: Vec<f64> = (0..8).map(|i| (i as f64 * 0.3).sin()).collect();
         let signal = make_f64(data.clone(), vec![8]);
-        let (re, im) = rfft_f64(signal, 0);
-        let reconstructed = irfft_f64(re, im, 0);
+        let (re, im) = rfft_f64(signal, 0, None);
+        let reconstructed = irfft_f64(re, im, 0, None);
         assert_approx_f64(reconstructed, &data, 1e-5);
     }
 }

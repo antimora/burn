@@ -1104,24 +1104,31 @@ pub trait ModuleOps<B: Backend> {
         }
     }
 
-    /// Real-valued fast Fourier transform.
+    /// Real-valued FFT with optional size parameter.
     ///
-    /// Computes the discrete Fourier transform of a real-valued input along the given dimension.
-    /// The transform is applied independently for each slice along `dim`, returning the non-redundant
-    /// frequency components as separate real and imaginary tensors.
-    /// #Returns
-    /// two tensors, the first is the real part, the second is the imaginary
-    fn rfft(signal: FloatTensor<B>, dim: usize) -> (FloatTensor<B>, FloatTensor<B>);
+    /// When `n` is `None`, the signal must be power-of-two along `dim`.
+    /// When `n` is `Some(size)`, the signal is truncated or zero-padded to `size`, then
+    /// internally padded to the next power of two. Output has `size / 2 + 1` frequency bins
+    /// (or `signal_len / 2 + 1` when `n` is `None`).
+    ///
+    /// Returns two tensors: the real part and the imaginary part.
+    fn rfft(
+        signal: FloatTensor<B>,
+        dim: usize,
+        n: Option<usize>,
+    ) -> (FloatTensor<B>, FloatTensor<B>);
 
-    /// Inverse real-valued fast Fourier transform.
+    /// Inverse real-valued FFT with optional output size.
     ///
-    /// Computes the inverse discrete Fourier transform from a frequency-domain
-    /// representation given as separate real and imaginary components.
-    /// The transform is applied independently for each slice along `dim`.
+    /// When `n` is `None`, the reconstructed signal length `2 * (spectrum_size - 1)` must be
+    /// a power of two.
+    /// When `n` is `Some(size)`, the spectrum is padded/trimmed and the output is trimmed
+    /// to `size` samples.
     fn irfft(
         spectrum_re: FloatTensor<B>,
         spectrum_im: FloatTensor<B>,
         dim: usize,
+        n: Option<usize>,
     ) -> FloatTensor<B>;
 }
 

@@ -27,12 +27,15 @@ where $N$ is the size of the signal along the specified dimension.
 ///
 /// * `signal` - The input tensor containing the real-valued signal.
 /// * `dim` - The dimension along which to take the FFT.
-/// * The dimension in which the fft is done must be a power of two
+/// * `n` - Optional FFT length. When `None`, the signal must be power-of-two along `dim`.
+///   When `Some(n)`, the signal is truncated or zero-padded to length `n`, and `n` does not
+///   need to be a power of two (internal padding is handled automatically).
 ///
 /// # Returns
 ///
 /// A tuple containing:
-/// 1. The real part of the spectrum.
+/// 1. The real part of the spectrum (`n/2 + 1` elements along `dim`, where `n` is the
+///    effective FFT length).
 /// 2. The imaginary part of the spectrum.
 ///
 /// # Example
@@ -44,23 +47,41 @@ where $N$ is the size of the signal along the specified dimension.
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
 ///     let signal = Tensor::<B, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
-///     let (real, imag) = burn_tensor::signal::rfft(signal, 0);
+///     let (real, imag) = burn_tensor::signal::rfft(signal, 0, None);
 /// }
 /// ```
 pub fn rfft<B: Backend, const D: usize>(
     signal: Tensor<B, D>,
     dim: usize,
+    n: Option<usize>,
 ) -> (Tensor<B, D>, Tensor<B, D>) {
     check!(TensorCheck::check_dim::<D>(dim));
-    check!(TensorCheck::check_is_power_of_two::<D>(
-        &signal.shape(),
-        dim
-    ));
-    let (spectrum_re, spectrum_im) = B::rfft(signal.primitive.tensor(), dim);
-    (
-        Tensor::new(TensorPrimitive::Float(spectrum_re)),
-        Tensor::new(TensorPrimitive::Float(spectrum_im)),
-    )
+
+    match n {
+        None => {
+            check!(TensorCheck::check_is_power_of_two::<D>(
+                &signal.shape(),
+                dim
+            ));
+            let (spectrum_re, spectrum_im) =
+                B::rfft(signal.primitive.tensor(), dim, None);
+            (
+                Tensor::new(TensorPrimitive::Float(spectrum_re)),
+                Tensor::new(TensorPrimitive::Float(spectrum_im)),
+            )
+        }
+        Some(n) => {
+            assert!(n >= 1, "rfft: n must be >= 1, got {n}");
+
+            // Delegate to backend with n, letting it handle padding if it can
+            let (spectrum_re, spectrum_im) =
+                B::rfft(signal.primitive.tensor(), dim, Some(n));
+            (
+                Tensor::new(TensorPrimitive::Float(spectrum_re)),
+                Tensor::new(TensorPrimitive::Float(spectrum_im)),
+            )
+        }
+    }
 }
 
 /// Computes the 1-dimensional inverse discrete Fourier Transform for real-valued signals.
@@ -86,7 +107,9 @@ where $N$ is the size of the reconstructed signal.
 /// * `spectrum_re` - The real part of the spectrum.
 /// * `spectrum_im` - The imaginary part of the spectrum.
 /// * `dim` - The dimension along which to take the inverse FFT.
-/// * The reconstructed signal length (2 * (size - 1)) must be a power of two.
+/// * `n` - Optional output signal length. When `None`, the reconstructed signal length
+///   `2 * (size - 1)` must be a power of two. When `Some(n)`, the spectrum is padded or
+///   trimmed to produce exactly `n` output samples.
 ///
 /// # Returns
 ///
@@ -102,20 +125,37 @@ where $N$ is the size of the reconstructed signal.
 ///     let device = B::Device::default();
 ///     let real = Tensor::<B, 1>::from_floats([10.0, -2.0, 2.0], &device);
 ///     let imag = Tensor::<B, 1>::from_floats([0.0, 2.0, 0.0], &device);
-///     let signal = burn_tensor::signal::irfft(real, imag, 0);
+///     let signal = burn_tensor::signal::irfft(real, imag, 0, None);
 /// }
 /// ```
 pub fn irfft<B: Backend, const D: usize>(
     spectrum_re: Tensor<B, D>,
     spectrum_im: Tensor<B, D>,
     dim: usize,
+    n: Option<usize>,
 ) -> Tensor<B, D> {
     check!(TensorCheck::check_dim::<D>(dim));
 
-    let signal = B::irfft(
-        spectrum_re.primitive.tensor(),
-        spectrum_im.primitive.tensor(),
-        dim,
-    );
-    Tensor::new(TensorPrimitive::Float(signal))
+    match n {
+        None => {
+            let signal = B::irfft(
+                spectrum_re.primitive.tensor(),
+                spectrum_im.primitive.tensor(),
+                dim,
+                None,
+            );
+            Tensor::new(TensorPrimitive::Float(signal))
+        }
+        Some(n) => {
+            assert!(n >= 1, "irfft: n must be >= 1, got {n}");
+
+            let signal = B::irfft(
+                spectrum_re.primitive.tensor(),
+                spectrum_im.primitive.tensor(),
+                dim,
+                Some(n),
+            );
+            Tensor::new(TensorPrimitive::Float(signal))
+        }
+    }
 }

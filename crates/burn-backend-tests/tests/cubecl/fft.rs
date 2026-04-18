@@ -5,7 +5,7 @@ use burn_tensor::{TensorData, Tolerance};
 #[test]
 fn rfft_zeros() {
     let signal = TestTensor::<1>::from([0.0, 0.0, 0.0, 0.0]);
-    let (re, im) = rfft(signal, 0);
+    let (re, im) = rfft(signal, 0, None);
 
     let expected_re = TensorData::from([0.0, 0.0, 0.0]);
     let expected_im = TensorData::from([0.0, 0.0, 0.0]);
@@ -19,7 +19,7 @@ fn rfft_zeros() {
 #[test]
 fn rfft_constant() {
     let signal = TestTensor::<1>::from([1.0, 1.0, 1.0, 1.0]);
-    let (re, im) = rfft(signal, 0);
+    let (re, im) = rfft(signal, 0, None);
 
     let expected_re = TensorData::from([4.0, 0.0, 0.0]);
     let expected_im = TensorData::from([0.0, 0.0, 0.0]);
@@ -33,7 +33,7 @@ fn rfft_constant() {
 #[test]
 fn rfft_length1() {
     let signal = TestTensor::<1>::from([5.0]);
-    let (re, im) = rfft(signal, 0);
+    let (re, im) = rfft(signal, 0, None);
 
     let expected_re = TensorData::from([5.0]);
     let expected_im = TensorData::from([0.0]);
@@ -47,7 +47,7 @@ fn rfft_length1() {
 #[test]
 fn rfft_length2() {
     let signal = TestTensor::<1>::from([1.0, -1.0]);
-    let (re, im) = rfft(signal, 0);
+    let (re, im) = rfft(signal, 0, None);
 
     let expected_re = TensorData::from([0.0, 2.0]);
     let expected_im = TensorData::from([0.0, 0.0]);
@@ -62,7 +62,7 @@ fn rfft_length2() {
 fn rfft_dim1_sine_wave_produces_imaginary_spectrum() {
     let signal = TestTensor::<2>::from([[0.0, 1.2071, 1.0, 0.2071, 0.0, -0.2071, -1.0, -1.2071]]);
     let dim = 1;
-    let (spectrum_re, spectrum_im) = rfft(signal.clone(), dim);
+    let (spectrum_re, spectrum_im) = rfft(signal.clone(), dim, None);
     let expected_re = TensorData::from([[0, 0, 0, 0, 0]]);
     let expected_im = TensorData::from([[0, -4, -2, 0, 0]]);
 
@@ -82,7 +82,7 @@ fn rfft_dim1_sine_wave_produces_imaginary_spectrum() {
 fn rfft_dim1_cosine_wave_produces_real_spectrum() {
     let signal = TestTensor::<2>::from([[1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071, 0.0, 0.7071]]);
 
-    let (spectrum_re, spectrum_im) = rfft(signal, 1);
+    let (spectrum_re, spectrum_im) = rfft(signal, 1, None);
 
     let expected_re = TensorData::from([[0.0, 4.0, 0.0, 0.0, 0.0]]);
     let expected_im = TensorData::from([[0.0, 0.0, 0.0, 0.0, 0.0]]);
@@ -106,7 +106,7 @@ fn rfft_dim1_2d_tensor_distinct_rows() {
         [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
     ]);
 
-    let (spectrum_re, spectrum_im) = rfft(signal, 1);
+    let (spectrum_re, spectrum_im) = rfft(signal, 1, None);
 
     let expected_re = TensorData::from([[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]]);
 
@@ -137,7 +137,7 @@ fn rfft_dim0_2d_tensor() {
         [-0.7071, -1.0],
     ]);
 
-    let (spectrum_re, spectrum_im) = rfft(signal, 0);
+    let (spectrum_re, spectrum_im) = rfft(signal, 0, None);
 
     let expected_re =
         TensorData::from([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]);
@@ -170,7 +170,7 @@ fn rfft_dim2_3d_tensor() {
         ],
     ]);
 
-    let (spectrum_re, spectrum_im) = rfft(signal, 2);
+    let (spectrum_re, spectrum_im) = rfft(signal, 2, None);
 
     let expected_re = TensorData::from([
         [[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]],
@@ -201,7 +201,7 @@ fn rfft_dim1_3d_tensor() {
         [[0.0, 1.0], [0.0, 0.0], [0.0, -1.0], [0.0, 0.0]],
     ]);
 
-    let (spectrum_re, spectrum_im) = rfft(signal, 1);
+    let (spectrum_re, spectrum_im) = rfft(signal, 1, None);
 
     let expected_re = TensorData::from([
         [[0.0, 0.0], [2.0, 0.0], [0.0, 0.0]],
@@ -230,7 +230,7 @@ fn irfft_dim1_imaginary_spectrum_produces_sine_wave() {
     let spectrum_re = TestTensor::<2>::from([[0.0, 0.0, 0.0, 0.0, 0.0]]);
     let spectrum_im = TestTensor::<2>::from([[0.0, -4.0, -2.0, 0.0, 0.0]]);
 
-    let signal = irfft(spectrum_re, spectrum_im, 1);
+    let signal = irfft(spectrum_re, spectrum_im, 1, None);
 
     let expected = TensorData::from([[0.0, 1.2071, 1.0, 0.2071, 0.0, -0.2071, -1.0, -1.2071]]);
 
@@ -244,7 +244,7 @@ fn irfft_dim1_real_spectrum_produces_cosine_wave() {
     let spectrum_re = TestTensor::<2>::from([[0.0, 4.0, 0.0, 0.0, 0.0]]);
     let spectrum_im = TestTensor::<2>::from([[0.0, 0.0, 0.0, 0.0, 0.0]]);
 
-    let signal = irfft(spectrum_re, spectrum_im, 1);
+    let signal = irfft(spectrum_re, spectrum_im, 1, None);
 
     let expected = TensorData::from([[1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071, 0.0, 0.7071]]);
 
@@ -260,7 +260,7 @@ fn irfft_dim1_2d_tensor_distinct_rows() {
     let spectrum_im =
         TestTensor::<2>::from([[0.0, -4.0, 0.0, 0.0, 0.0], [0.0, 0.0, -4.0, 0.0, 0.0]]);
 
-    let signal = irfft(spectrum_re, spectrum_im, 1);
+    let signal = irfft(spectrum_re, spectrum_im, 1, None);
 
     let expected = TensorData::from([
         [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071],
@@ -280,7 +280,7 @@ fn irfft_dim0_2d_tensor() {
     let spectrum_im =
         TestTensor::<2>::from([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]);
 
-    let signal = irfft(spectrum_re, spectrum_im, 0);
+    let signal = irfft(spectrum_re, spectrum_im, 0, None);
 
     let expected = TensorData::from([
         [1.0, 1.0],
@@ -302,8 +302,8 @@ fn irfft_dim0_2d_tensor() {
 fn rfft_irfft_roundtrip_1d() {
     let signal = TestTensor::<1>::from([0.0, 1.2071, 1.0, 0.2071, 0.0, -0.2071, -1.0, -1.2071]);
 
-    let (re, im) = rfft(signal.clone(), 0);
-    let reconstructed = irfft(re, im, 0);
+    let (re, im) = rfft(signal.clone(), 0, None);
+    let reconstructed = irfft(re, im, 0, None);
 
     reconstructed
         .into_data()
@@ -317,8 +317,8 @@ fn rfft_irfft_roundtrip_dim1_2d() {
         [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
     ]);
 
-    let (re, im) = rfft(signal.clone(), 1);
-    let reconstructed = irfft(re, im, 1);
+    let (re, im) = rfft(signal.clone(), 1, None);
+    let reconstructed = irfft(re, im, 1, None);
 
     reconstructed
         .into_data()
@@ -338,8 +338,8 @@ fn rfft_irfft_roundtrip_dim0_2d() {
         [0.7071, -1.0],
     ]);
 
-    let (re, im) = rfft(signal.clone(), 0);
-    let reconstructed = irfft(re, im, 0);
+    let (re, im) = rfft(signal.clone(), 0, None);
+    let reconstructed = irfft(re, im, 0, None);
 
     reconstructed
         .into_data()
@@ -371,8 +371,8 @@ fn rfft_irfft_roundtrip_dim1_3d() {
         ],
     ]);
 
-    let (re, im) = rfft(signal.clone(), 1);
-    let reconstructed = irfft(re, im, 1);
+    let (re, im) = rfft(signal.clone(), 1, None);
+    let reconstructed = irfft(re, im, 1, None);
 
     reconstructed
         .into_data()

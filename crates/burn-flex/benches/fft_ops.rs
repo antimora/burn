@@ -53,31 +53,31 @@ mod flex {
         #[divan::bench]
         fn n_256(bencher: Bencher) {
             let s = make_signal_1d(256);
-            bencher.bench(|| rfft(s.clone(), 0));
+            bencher.bench(|| rfft(s.clone(), 0, None));
         }
 
         #[divan::bench]
         fn n_1024(bencher: Bencher) {
             let s = make_signal_1d(1024);
-            bencher.bench(|| rfft(s.clone(), 0));
+            bencher.bench(|| rfft(s.clone(), 0, None));
         }
 
         #[divan::bench]
         fn n_4096(bencher: Bencher) {
             let s = make_signal_1d(4096);
-            bencher.bench(|| rfft(s.clone(), 0));
+            bencher.bench(|| rfft(s.clone(), 0, None));
         }
 
         #[divan::bench]
         fn n_16384(bencher: Bencher) {
             let s = make_signal_1d(16384);
-            bencher.bench(|| rfft(s.clone(), 0));
+            bencher.bench(|| rfft(s.clone(), 0, None));
         }
 
         #[divan::bench]
         fn n_65536(bencher: Bencher) {
             let s = make_signal_1d(65536);
-            bencher.bench(|| rfft(s.clone(), 0));
+            bencher.bench(|| rfft(s.clone(), 0, None));
         }
     }
 
@@ -88,19 +88,19 @@ mod flex {
         #[divan::bench]
         fn batch_16_n_1024(bencher: Bencher) {
             let s = make_signal_2d(16, 1024);
-            bencher.bench(|| rfft(s.clone(), 1));
+            bencher.bench(|| rfft(s.clone(), 1, None));
         }
 
         #[divan::bench]
         fn batch_64_n_1024(bencher: Bencher) {
             let s = make_signal_2d(64, 1024);
-            bencher.bench(|| rfft(s.clone(), 1));
+            bencher.bench(|| rfft(s.clone(), 1, None));
         }
 
         #[divan::bench]
         fn batch_256_n_256(bencher: Bencher) {
             let s = make_signal_2d(256, 256);
-            bencher.bench(|| rfft(s.clone(), 1));
+            bencher.bench(|| rfft(s.clone(), 1, None));
         }
     }
 
@@ -110,8 +110,8 @@ mod flex {
 
         fn bench_irfft(bencher: Bencher, n: usize) {
             let s = make_signal_1d(n);
-            let (re, im) = rfft(s, 0);
-            bencher.bench(|| irfft(re.clone(), im.clone(), 0));
+            let (re, im) = rfft(s, 0, None);
+            bencher.bench(|| irfft(re.clone(), im.clone(), 0, None));
         }
 
         #[divan::bench]
