@@ -388,7 +388,6 @@ fn complex_fft(re: &mut [f32], im: &mut [f32], n: usize, tw: &TwiddleRef) {
 
     // For odd number of stages, do one radix-2 pass first so the
     // remaining stages can be processed in radix-4 pairs.
-    // For odd number of stages, do one radix-2 pass first.
     // Stage 0 twiddle is always W_2^0 = 1, so just add/sub.
     let start_stage = if num_stages % 2 == 1 {
         let mut start = 0;
@@ -1249,7 +1248,7 @@ fn inverse_complex_fft(re: &mut [f32], im: &mut [f32], n: usize, tw: &TwiddleRef
         *v = -*v;
     }
 
-    // Forward FFT (uses SIMD radix-2 when available)
+    // Forward FFT (mixed radix-4/radix-2, SIMD when available)
     complex_fft(re, im, n, tw);
 
     // Conjugate output and scale by 1/N
@@ -1586,7 +1585,7 @@ pub fn irfft_bf16(
     super::module::cast_from_f32(result, bf16::from_f32)
 }
 
-// Tests kept here exercise flex-specific behavior: the internal radix-2
+// Tests kept here exercise flex-specific behavior: the internal
 // FFT kernels (`rfft_f32`/`_f64`/`_f16`, `irfft_*`, `complex_fft`,
 // `inverse_complex_fft`) across sizes that span the radix-4 and complex
 // packing paths (N=1, 2, 4, 8, 256, 1024, 4096), f16/f64 dtype handling,

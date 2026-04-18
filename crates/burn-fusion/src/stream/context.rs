@@ -495,7 +495,7 @@ impl RelativeOps for ModuleOperationIr {
                 dim: desc.dim,
                 n: desc.n,
                 out_re: desc.out_re.to_relative(converter),
-                out_im: desc.out_re.to_relative(converter),
+                out_im: desc.out_im.to_relative(converter),
             }),
             ModuleOperationIr::IRfft(desc) => ModuleOperationIr::IRfft(IRfftOpIr {
                 input_re: desc.input_re.to_relative(converter),

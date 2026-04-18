@@ -378,3 +378,108 @@ fn rfft_irfft_roundtrip_dim1_3d() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&signal.into_data(), Tolerance::absolute(1e-3));
 }
+
+// ---- Padded input tests (n: Some(...)) ----
+
+#[test]
+fn rfft_with_n_larger_than_signal() {
+    // Signal of length 4, padded to n=8
+    // DFT of [1,0,0,0, 0,0,0,0] = all-ones real, zero imag
+    let signal = TestTensor::<1>::from([1.0, 0.0, 0.0, 0.0]);
+    let (re, im) = rfft(signal, 0, Some(8));
+
+    let expected_re = TensorData::from([1.0, 1.0, 1.0, 1.0, 1.0]);
+    let expected_im = TensorData::from([0.0, 0.0, 0.0, 0.0, 0.0]);
+
+    re.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
+    im.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn rfft_with_n_smaller_than_signal() {
+    // Signal of length 8, truncated to n=4 -> DFT of [1,0,0,0]
+    let signal = TestTensor::<1>::from([1.0, 0.0, 0.0, 0.0, 99.0, 99.0, 99.0, 99.0]);
+    let (re, im) = rfft(signal, 0, Some(4));
+
+    let expected_re = TensorData::from([1.0, 1.0, 1.0]);
+    let expected_im = TensorData::from([0.0, 0.0, 0.0]);
+
+    re.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
+    im.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn rfft_with_non_power_of_two_n() {
+    // n=5 rounds up to fft_size=8, output trimmed to 5/2+1=3 bins
+    let signal = TestTensor::<1>::from([1.0, 1.0, 1.0, 1.0, 1.0]);
+    let (re, im) = rfft(signal, 0, Some(5));
+
+    assert_eq!(re.dims(), [3]); // 5/2+1 = 3
+    assert_eq!(im.dims(), [3]);
+
+    // DC bin = sum of all ones = 5.0
+    let re_data = re.into_data();
+    let re_vals = re_data.to_vec::<f32>().unwrap();
+    assert!((re_vals[0] - 5.0).abs() < 1e-3, "DC bin should be 5.0, got {}", re_vals[0]);
+}
+
+#[test]
+fn rfft_irfft_roundtrip_with_n() {
+    let signal = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]);
+    let (re, im) = rfft(signal.clone(), 0, Some(4));
+    let reconstructed = irfft(re, im, 0, Some(4));
+
+    reconstructed
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&signal.into_data(), Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn rfft_irfft_roundtrip_non_power_of_two() {
+    // n=6: exercises virtual padding + trimming in both directions
+    let signal = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    let (re, im) = rfft(signal.clone(), 0, Some(6));
+    let reconstructed = irfft(re, im, 0, Some(6));
+
+    reconstructed
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&signal.into_data(), Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn irfft_with_n_different_from_natural() {
+    // Spectrum from length-4 signal (3 bins), reconstruct at length 8
+    let signal = TestTensor::<1>::from([1.0, 0.0, 0.0, 0.0]);
+    let (re, im) = rfft(signal, 0, None);
+    let reconstructed = irfft(re, im, 0, Some(8));
+    assert_eq!(reconstructed.dims(), [8]);
+}
+
+#[test]
+fn rfft_2d_with_n_padded() {
+    // 2D tensor, rfft along dim=1 with n=8 (signal is length 4)
+    let signal = TestTensor::<2>::from([
+        [1.0, 0.0, 0.0, 0.0],
+        [1.0, 1.0, 1.0, 1.0],
+    ]);
+    let (re, im) = rfft(signal, 1, Some(8));
+
+    // Output: 8/2+1=5 frequency bins
+    assert_eq!(re.dims(), [2, 5]);
+    assert_eq!(im.dims(), [2, 5]);
+
+    // Row 0: impulse zero-padded to 8 -> all-ones real
+    let re_data = re.into_data();
+    let re_vals = re_data.to_vec::<f32>().unwrap();
+    for k in 0..5 {
+        assert!(
+            (re_vals[k] - 1.0).abs() < 1e-3,
+            "row0 re[{k}] should be 1.0, got {}",
+            re_vals[k]
+        );
+    }
+}

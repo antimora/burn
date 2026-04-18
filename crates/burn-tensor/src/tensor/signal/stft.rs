@@ -9,7 +9,7 @@ use crate::ops::PadMode;
 use super::{irfft, rfft};
 
 /// Configuration shared by [`stft`] and [`istft`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StftOptions {
     /// Size of each FFT frame (must be >= 1).
     pub n_fft: usize,
@@ -21,6 +21,12 @@ pub struct StftOptions {
     pub center: bool,
     /// If `true` (typical for real input), uses only the first `n_fft/2 + 1` frequency bins.
     pub onesided: bool,
+}
+
+impl StftOptions {
+    fn effective_win_length(&self) -> usize {
+        self.win_length.unwrap_or(self.n_fft)
+    }
 }
 
 /// Computes the Short-Time Fourier Transform (STFT).
@@ -36,20 +42,17 @@ pub fn stft<B: Backend>(
     window: Option<Tensor<B, 1>>,
     options: StftOptions,
 ) -> Tensor<B, 4> {
-    let StftOptions {
-        n_fft,
-        hop_length,
-        win_length,
-        center,
-        onesided,
-    } = options;
+    let n_fft = options.n_fft;
+    let hop_length = options.hop_length;
+    let center = options.center;
+    let onesided = options.onesided;
     assert!(n_fft >= 1, "n_fft must be >= 1, got {n_fft}");
     assert!(
         hop_length >= 1,
         "hop_length must be >= 1, got {hop_length}"
     );
 
-    let win_len = win_length.unwrap_or(n_fft);
+    let win_len = options.effective_win_length();
     assert!(
         win_len <= n_fft,
         "win_length ({win_len}) must be <= n_fft ({n_fft})"
@@ -94,7 +97,7 @@ pub fn stft<B: Backend>(
     let window_3d: Tensor<B, 3> = window.reshape([1, 1, n_fft]);
     let windowed = frames.mul(window_3d);
 
-    // Flatten to [batch * n_frames, n_fft] for rfft_n
+    // Flatten to [batch * n_frames, n_fft] for rfft
     let flat: Tensor<B, 2> = windowed.reshape([batch * n_frames, n_fft]);
 
     let (re, im) = rfft(flat, 1, Some(n_fft));
@@ -175,17 +178,19 @@ pub fn istft<B: Backend>(
     length: Option<usize>,
     options: StftOptions,
 ) -> Tensor<B, 2> {
-    let StftOptions {
-        n_fft,
-        hop_length,
-        win_length,
-        center,
-        onesided,
-    } = options;
+    let n_fft = options.n_fft;
+    let hop_length = options.hop_length;
+    let center = options.center;
+    let onesided = options.onesided;
+    assert!(n_fft >= 1, "n_fft must be >= 1, got {n_fft}");
+    assert!(
+        hop_length >= 1,
+        "hop_length must be >= 1, got {hop_length}"
+    );
     let [batch, n_frames, _n_freqs, two] = stft_matrix.dims();
     assert_eq!(two, 2, "last dimension of stft_matrix must be 2 (real, imag)");
 
-    let win_len = win_length.unwrap_or(n_fft);
+    let win_len = options.effective_win_length();
     let device = stft_matrix.device();
 
     let window = match window {
@@ -241,8 +246,7 @@ pub fn istft<B: Backend>(
         window_sum = window_sum.clone().slice_assign(ranges, current_win.add(win_frame));
     }
 
-    // Normalize by window sum (avoid division by zero)
-    let window_sum = window_sum.add_scalar(1e-10);
+    let window_sum = window_sum.clamp_min(1e-10);
     output = output.div(window_sum);
 
     // Remove center padding

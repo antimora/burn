@@ -101,9 +101,21 @@ pub fn irfft<R: CubeRuntime>(
     dim: usize,
     n: Option<usize>,
 ) -> CubeTensor<R> {
-    let dtype = f32::as_type_native_unchecked().storage_type();
+    assert!(
+        spectrum_re.shape() == spectrum_im.shape(),
+        "irfft: spectrum_re and spectrum_im shapes must match"
+    );
+
+    let dtype = match spectrum_re.dtype {
+        DType::F64 => f64::as_type_native_unchecked().storage_type(),
+        DType::F32 => f32::as_type_native_unchecked().storage_type(),
+        _ => panic!("Unsupported type {:?}", spectrum_re.dtype),
+    };
 
     let requested_n = n.unwrap_or((spectrum_re.shape()[dim] - 1) * 2);
+    if requested_n == 0 {
+        return spectrum_re;
+    }
     let fft_size = requested_n.next_power_of_two();
     let half_fft = fft_size / 2 + 1;
 
@@ -128,7 +140,7 @@ pub fn irfft<R: CubeRuntime>(
         dim,
         dtype,
     )
-    .unwrap();
+    .expect("irfft kernel launch failed");
 
     if fft_size > requested_n {
         pad_to_length(signal, dim, requested_n)

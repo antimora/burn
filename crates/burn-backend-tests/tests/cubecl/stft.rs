@@ -98,7 +98,7 @@ fn stft_istft_roundtrip_rectangular() {
     let hop_length = 2;
 
     let o = opts(n_fft, hop_length, false, true);
-    let spectrum = stft(original.clone(), None, o.clone());
+    let spectrum = stft(original.clone(), None, o);
     let reconstructed = istft(spectrum, None, Some(8), o);
 
     reconstructed
@@ -113,7 +113,7 @@ fn stft_istft_roundtrip_centered() {
     let hop_length = 2;
 
     let o = opts(n_fft, hop_length, true, true);
-    let spectrum = stft(original.clone(), None, o.clone());
+    let spectrum = stft(original.clone(), None, o);
     let reconstructed = istft(spectrum, None, Some(8), o);
 
     reconstructed
@@ -131,7 +131,7 @@ fn stft_istft_roundtrip_hann_window() {
     let o = opts(n_fft, hop_length, true, true);
 
     // center=true is required with Hann windows to avoid edge effects from window zeros
-    let spectrum = stft(original.clone(), Some(window.clone()), o.clone());
+    let spectrum = stft(original.clone(), Some(window.clone()), o);
     let reconstructed = istft(spectrum, Some(window), Some(8), o);
 
     reconstructed
@@ -146,7 +146,7 @@ fn stft_istft_roundtrip_twosided() {
     let hop_length = 2;
 
     let o = opts(n_fft, hop_length, false, false);
-    let spectrum = stft(original.clone(), None, o.clone());
+    let spectrum = stft(original.clone(), None, o);
     let reconstructed = istft(spectrum, None, Some(8), o);
 
     reconstructed
@@ -164,8 +164,24 @@ fn stft_istft_roundtrip_batch() {
     let hop_length = 2;
 
     let o = opts(n_fft, hop_length, false, true);
-    let spectrum = stft(original.clone(), None, o.clone());
+    let spectrum = stft(original.clone(), None, o);
     let reconstructed = istft(spectrum, None, Some(8), o);
+
+    reconstructed
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&original.into_data(), Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn stft_istft_roundtrip_non_power_of_two_nfft() {
+    // n_fft=5 exercises non-power-of-two virtual padding path
+    let original = TestTensor::<2>::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]]);
+    let n_fft = 5;
+    let hop_length = 1;
+
+    let o = opts(n_fft, hop_length, false, true);
+    let spectrum = stft(original.clone(), None, o);
+    let reconstructed = istft(spectrum, None, Some(10), o);
 
     reconstructed
         .into_data()
