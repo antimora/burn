@@ -438,6 +438,29 @@ strategies.
 | `linalg::vector_norm(tensor, p, dim)`              | `torch.linalg.vector_norm(tensor, p, dim)`          |
 | `linalg::vector_normalize(tensor, norm, dim, eps)` | `nn.functional.normalize(tensor, p, dim, eps)`      |
 
+## Signal Functions
+
+Signal-processing helpers live in `burn::tensor::signal` and operate on real-valued float
+tensors. FFT functions share a padded-pow2 convention: when `n` is `Some(size)`, the input
+is first truncated or zero-padded to `size`, then internally padded to the next power of two
+before the kernel runs, so the output has `next_pow2(size) / 2 + 1` frequency bins (this
+equals `size / 2 + 1` when `size` is already a power of two).
+
+| Burn API                                         | PyTorch Equivalent                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| `signal::rfft(tensor, dim, n)`                   | `torch.fft.rfft(tensor, n, dim)`                                    |
+| `signal::irfft(re, im, dim, n)`                  | `torch.fft.irfft(complex, n, dim)`                                  |
+| `signal::stft(signal, window, options)`          | `torch.stft(signal, n_fft, hop_length, win_length, window, center)` |
+| `signal::istft(stft_matrix, window, length, options)` | `torch.istft(stft_matrix, n_fft, hop_length, win_length, window, center, length)` |
+| `signal::hann_window(size, periodic, options)`   | `torch.hann_window(size, periodic)`                                 |
+| `signal::hamming_window(size, periodic, options)`| `torch.hamming_window(size, periodic)`                              |
+
+`stft` and `istft` share a `StftOptions` struct with fields `n_fft`, `hop_length`,
+`win_length`, `center`, and `onesided`. Use `StftOptions::new(n_fft)` for PyTorch-style
+defaults (`hop_length = n_fft / 4`, `win_length = None`, `center = true`, `onesided = true`).
+The option set is validated on entry to both `stft` and `istft`, which require
+`hop_length <= effective_win_length` (the COLA prerequisite for invertibility).
+
 ## Displaying Tensor Details
 
 Burn provides flexible options for displaying tensor information, allowing you to control the level
