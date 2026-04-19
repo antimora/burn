@@ -35,6 +35,10 @@ fn pad_to_length<R: CubeRuntime>(
 }
 
 /// Launch the rfft kernel with optional padding for non-power-of-two sizes.
+///
+/// Signal is first truncated or zero-padded to `n` (when provided), then internally
+/// padded to the next power of two so the kernel operates on a pow2 length.
+/// Output bin count is `fft_size / 2 + 1` where `fft_size = next_pow2(n)`.
 pub fn rfft<R: CubeRuntime>(
     signal: CubeTensor<R>,
     dim: usize,
@@ -46,9 +50,15 @@ pub fn rfft<R: CubeRuntime>(
         _ => panic!("Unsupported type {:?}", signal.dtype),
     };
 
-    let requested_n = n.unwrap_or(signal.shape()[dim]);
+    let input_device = signal.device.clone();
+    let input_dtype = signal.dtype;
+    let input_shape = signal.shape();
+    let requested_n = n.unwrap_or(input_shape[dim]);
     let fft_size = requested_n.next_power_of_two();
 
+    // Truncate/pad to requested_n, THEN pad to fft_size; otherwise for
+    // requested_n < input_len < fft_size we would keep bogus samples in [n, fft_size).
+    let signal = pad_to_length(signal, dim, requested_n);
     let signal = pad_to_length(signal, dim, fft_size);
 
     let signal_shape = signal.shape();
@@ -76,7 +86,12 @@ pub fn rfft<R: CubeRuntime>(
         dim,
         dtype,
     )
-    .expect("rfft kernel launch failed");
+    .unwrap_or_else(|e| {
+        panic!(
+            "rfft kernel launch failed (device={input_device:?}, dtype={input_dtype:?}, \
+             dim={dim}, requested_n={requested_n}, fft_size={fft_size}): {e}"
+        )
+    });
 
     (output_re, output_im)
 }
@@ -92,6 +107,14 @@ pub fn irfft<R: CubeRuntime>(
         spectrum_re.shape() == spectrum_im.shape(),
         "irfft: spectrum_re and spectrum_im shapes must match"
     );
+    assert!(
+        spectrum_re.shape()[dim] >= 1,
+        "irfft: spectrum dimension cannot be empty"
+    );
+    assert!(
+        !matches!(n, Some(0)),
+        "irfft: n must be >= 1 when specified, got Some(0)"
+    );
 
     let dtype = match spectrum_re.dtype {
         DType::F64 => f64::as_type_native_unchecked().storage_type(),
@@ -99,11 +122,10 @@ pub fn irfft<R: CubeRuntime>(
         _ => panic!("Unsupported type {:?}", spectrum_re.dtype),
     };
 
+    let input_device = spectrum_re.device.clone();
+    let input_dtype = spectrum_re.dtype;
     let requested_n = n.unwrap_or((spectrum_re.shape()[dim] - 1) * 2);
-    if requested_n == 0 {
-        return spectrum_re;
-    }
-    let fft_size = requested_n.next_power_of_two();
+    let fft_size = requested_n.next_power_of_two().max(1);
     let half_fft = fft_size / 2 + 1;
 
     let spectrum_re = pad_to_length(spectrum_re, dim, half_fft);
@@ -127,7 +149,12 @@ pub fn irfft<R: CubeRuntime>(
         dim,
         dtype,
     )
-    .expect("irfft kernel launch failed");
+    .unwrap_or_else(|e| {
+        panic!(
+            "irfft kernel launch failed (device={input_device:?}, dtype={input_dtype:?}, \
+             dim={dim}, requested_n={requested_n}, fft_size={fft_size}): {e}"
+        )
+    });
 
     if fft_size > requested_n {
         pad_to_length(signal, dim, requested_n)

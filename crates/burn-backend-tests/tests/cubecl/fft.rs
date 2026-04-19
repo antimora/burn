@@ -413,12 +413,37 @@ fn rfft_with_n_smaller_than_signal() {
 }
 
 #[test]
+fn rfft_truncates_signal_to_requested_n_then_pads_to_pow2() {
+    // Signal of length 10. User asks for n=5 (non-pow2). Backend must:
+    //   1) Truncate the signal to 5 (dropping samples 5..10)
+    //   2) Zero-pad from 5 to fft_size=8
+    // Output bin count is fft_size/2+1=5. Regression test for a bug where
+    // the backend instead truncated directly to 8 (keeping samples 5,6,7).
+    let signal = TestTensor::<1>::from([1.0, 0.0, 0.0, 0.0, 0.0, 99.0, 99.0, 99.0, 99.0, 99.0]);
+    let (re, _im) = rfft(signal, 0, Some(5));
+
+    assert_eq!(re.dims(), [5]);
+
+    // Effective input after step 1+2 is [1,0,0,0,0,0,0,0], an impulse.
+    // DFT of an impulse is all-ones real.
+    let re_data = re.into_data();
+    let re_vals = re_data.to_vec::<f32>().unwrap();
+    for (k, v) in re_vals.iter().enumerate() {
+        assert!(
+            (v - 1.0).abs() < 1e-3,
+            "re[{k}] should be 1.0 (impulse DFT), got {v}"
+        );
+    }
+}
+
+#[test]
 fn rfft_with_non_power_of_two_n() {
-    // n=5 rounds up to fft_size=8, output has fft_size/2+1=5 bins
+    // Padded-pow2 semantics: n=5 is first trimmed/padded to 5, then internally
+    // padded to the next power of two (8). Output has fft_size/2+1 = 5 bins.
     let signal = TestTensor::<1>::from([1.0, 1.0, 1.0, 1.0, 1.0]);
     let (re, im) = rfft(signal, 0, Some(5));
 
-    assert_eq!(re.dims(), [5]); // 8/2+1 = 5
+    assert_eq!(re.dims(), [5]);
     assert_eq!(im.dims(), [5]);
 
     // DC bin = sum of all ones = 5.0

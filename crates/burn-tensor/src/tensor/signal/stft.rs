@@ -12,19 +12,64 @@ use super::{irfft, rfft};
 pub struct StftOptions {
     /// Size of each FFT frame (must be >= 1).
     pub n_fft: usize,
-    /// Stride between successive frames (must be >= 1).
+    /// Stride between successive frames (must be >= 1 and <= effective window length
+    /// so overlap-add can reconstruct the signal).
     pub hop_length: usize,
     /// Window length. If `Some(w)`, the window is center-padded to `n_fft`. Defaults to `n_fft`.
     pub win_length: Option<usize>,
     /// If `true`, the signal is reflect-padded by `n_fft / 2` on both sides before framing.
     pub center: bool,
-    /// If `true` (typical for real input), uses only the first `n_fft/2 + 1` frequency bins.
+    /// If `true` (typical for real input), output has `n_fft/2 + 1` frequency bins; otherwise
+    /// the full `n_fft` bins are returned.
     pub onesided: bool,
 }
 
 impl StftOptions {
+    /// Construct default options for the given FFT size, matching PyTorch defaults
+    /// (`hop_length = n_fft / 4`, `win_length = None`, `center = true`, `onesided = true`).
+    pub fn new(n_fft: usize) -> Self {
+        Self {
+            n_fft,
+            hop_length: (n_fft / 4).max(1),
+            win_length: None,
+            center: true,
+            onesided: true,
+        }
+    }
+
     fn effective_win_length(&self) -> usize {
         self.win_length.unwrap_or(self.n_fft)
+    }
+
+    fn assert_valid(&self, op: &'static str) {
+        let n_fft = self.n_fft;
+        let hop_length = self.hop_length;
+        assert!(n_fft >= 1, "{op}: n_fft must be >= 1, got {n_fft}");
+        assert!(
+            hop_length >= 1,
+            "{op}: hop_length must be >= 1, got {hop_length}"
+        );
+        let win_len = self.effective_win_length();
+        assert!(
+            win_len >= 1,
+            "{op}: effective win_length must be >= 1, got {win_len}"
+        );
+        assert!(
+            win_len <= n_fft,
+            "{op}: win_length ({win_len}) must be <= n_fft ({n_fft})"
+        );
+        assert!(
+            hop_length <= win_len,
+            "{op}: hop_length ({hop_length}) must be <= effective win_length ({win_len}) \
+             so the window/hop combination satisfies the COLA/NOLA condition required \
+             for invertibility"
+        );
+    }
+}
+
+impl Default for StftOptions {
+    fn default() -> Self {
+        Self::new(400)
     }
 }
 
@@ -41,18 +86,12 @@ pub fn stft<B: Backend>(
     window: Option<Tensor<B, 1>>,
     options: StftOptions,
 ) -> Tensor<B, 4> {
+    options.assert_valid("stft");
     let n_fft = options.n_fft;
     let hop_length = options.hop_length;
     let center = options.center;
     let onesided = options.onesided;
-    assert!(n_fft >= 1, "n_fft must be >= 1, got {n_fft}");
-    assert!(hop_length >= 1, "hop_length must be >= 1, got {hop_length}");
-
     let win_len = options.effective_win_length();
-    assert!(
-        win_len <= n_fft,
-        "win_length ({win_len}) must be <= n_fft ({n_fft})"
-    );
 
     let device = signal.device();
 
@@ -61,7 +100,7 @@ pub fn stft<B: Backend>(
             assert_eq!(
                 w.dims()[0],
                 win_len,
-                "window length ({}) must match win_length ({win_len})",
+                "stft: window length ({}) must match effective win_length ({win_len})",
                 w.dims()[0],
             );
             w
@@ -70,6 +109,15 @@ pub fn stft<B: Backend>(
     };
 
     let window = pad_window_to_n_fft(window, win_len, n_fft);
+
+    let [_, raw_sig_len] = signal.dims();
+    if center {
+        assert!(
+            raw_sig_len > n_fft / 2,
+            "stft: signal length ({raw_sig_len}) must be > n_fft/2 ({}) for reflect pad with center=true",
+            n_fft / 2
+        );
+    }
 
     let signal = if center {
         let pad_amount = n_fft / 2;
@@ -81,7 +129,7 @@ pub fn stft<B: Backend>(
     let [batch, sig_len] = signal.dims();
     assert!(
         sig_len >= n_fft,
-        "signal length ({sig_len}) must be >= n_fft ({n_fft}) after padding"
+        "stft: signal length ({sig_len}) must be >= n_fft ({n_fft}) after padding"
     );
 
     let n_frames = 1 + (sig_len - n_fft) / hop_length;
@@ -96,6 +144,8 @@ pub fn stft<B: Backend>(
     // Flatten to [batch * n_frames, n_fft] for rfft
     let flat: Tensor<B, 2> = windowed.reshape([batch * n_frames, n_fft]);
 
+    // rfft returns `next_pow2(n_fft) / 2 + 1` bins along dim=1 under the
+    // padded-pow2 semantics used by the flex/cubecl backends.
     let (re, im) = rfft(flat, 1, Some(n_fft));
 
     let n_freqs_actual = re.dims()[1];
@@ -140,7 +190,8 @@ fn reconstruct_full_spectrum<B: Backend>(
         return (re, im);
     }
 
-    // Negative frequencies = conjugate-reversed copies of bins 1..n_fft/2
+    // Negative frequencies: take bins 1..=n_neg from the onesided spectrum,
+    // conjugate (negate imag), and reverse to reconstruct the full N-point spectrum.
     let re_neg = re.clone().narrow(1, 1, n_neg).flip([1]);
     let im_neg = im.clone().narrow(1, 1, n_neg).flip([1]).neg();
 
@@ -185,23 +236,34 @@ pub fn istft<B: Backend>(
     length: Option<usize>,
     options: StftOptions,
 ) -> Tensor<B, 2> {
+    options.assert_valid("istft");
     let n_fft = options.n_fft;
     let hop_length = options.hop_length;
     let center = options.center;
     let onesided = options.onesided;
-    assert!(n_fft >= 1, "n_fft must be >= 1, got {n_fft}");
-    assert!(hop_length >= 1, "hop_length must be >= 1, got {hop_length}");
     let [batch, n_frames, _n_freqs, two] = stft_matrix.dims();
     assert_eq!(
         two, 2,
-        "last dimension of stft_matrix must be 2 (real, imag)"
+        "istft: last dimension of stft_matrix must be 2 (real, imag), got {two}"
+    );
+    assert!(
+        n_frames >= 1,
+        "istft: stft_matrix must contain at least one frame, got n_frames=0"
     );
 
     let win_len = options.effective_win_length();
     let device = stft_matrix.device();
 
     let window = match window {
-        Some(w) => w,
+        Some(w) => {
+            assert_eq!(
+                w.dims()[0],
+                win_len,
+                "istft: window length ({}) must match effective win_length ({win_len})",
+                w.dims()[0],
+            );
+            w
+        }
         None => Tensor::ones([win_len], &device),
     };
     let window = pad_window_to_n_fft(window, win_len, n_fft);

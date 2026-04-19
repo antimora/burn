@@ -1618,8 +1618,10 @@ impl RfftOpIr {
     where
         F: FnMut() -> crate::TensorId,
     {
+        // Padded-pow2 semantics: backends internally round `n` up to the next
+        // power of two, so the output has `next_pow2(n) / 2 + 1` bins.
         let mut shape = signal.shape.clone();
-        let fft_len = n.unwrap_or(shape[dim]);
+        let fft_len = n.unwrap_or(shape[dim]).next_power_of_two();
         shape[dim] = fft_len / 2 + 1;
         let dtype = signal.dtype;
 
@@ -1645,6 +1647,14 @@ impl IRfftOpIr {
     where
         F: FnMut() -> crate::TensorId,
     {
+        debug_assert!(
+            input_re.shape[dim] >= 1,
+            "IRfftOpIr: input spectrum dimension must be >= 1"
+        );
+        debug_assert!(
+            !matches!(n, Some(0)),
+            "IRfftOpIr: n must be >= 1 when specified"
+        );
         let mut shape = input_re.shape.clone();
         shape[dim] = n.unwrap_or((shape[dim] - 1) * 2);
         let dtype = input_re.dtype;

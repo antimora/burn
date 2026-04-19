@@ -1406,14 +1406,15 @@ pub fn irfft_f32(
     });
     let fft_size = requested_n.next_power_of_two();
 
-    // N=1: single DC bin, output is just the real value
+    // N=1: single DC bin, output is just the real value along `dim`.
+    // If caller's spectrum has more bins, take the DC (bin 0) only.
     if fft_size <= 1 {
-        let data: &[f32] = spectrum_re.storage();
-        return FlexTensor::new(
-            Bytes::from_elems(data.to_vec()),
-            spectrum_re.layout().clone(),
-            burn_backend::DType::F32,
-        );
+        let out = if spectrum_re.layout().shape()[dim] != 1 {
+            spectrum_re.narrow(dim, 0, 1)
+        } else {
+            spectrum_re
+        };
+        return out;
     }
 
     let half = fft_size / 2;
@@ -1589,14 +1590,11 @@ pub fn irfft_bf16(
     super::module::cast_from_f32(result, bf16::from_f32)
 }
 
-// Tests kept here exercise flex-specific behavior: the internal
-// FFT kernels (`rfft_f32`/`_f64`/`_f16`, `irfft_*`, `complex_fft`,
-// `inverse_complex_fft`) across sizes that span the radix-4 and complex
-// packing paths (N=1, 2, 4, 8, 256, 1024, 4096), f16/f64 dtype handling,
-// twiddle accuracy, Parseval's theorem on synthetic inputs, and a
-// reference cross-check against realfft. FFT is only implemented by the
-// flex backend, so there is no cross-backend equivalent in
-// burn-backend-tests.
+// Tests kept here exercise flex-specific internals: the FFT kernels
+// (`rfft_f32`/`_f64`/`_f16`, `irfft_*`, `complex_fft`, `inverse_complex_fft`)
+// across sizes that span the radix-4 and complex packing paths (N=1, 2, 4, 8,
+// 256, 1024, 4096), f16/f64 dtype handling, twiddle accuracy, Parseval's
+// theorem on synthetic inputs, and a reference cross-check against realfft.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2078,5 +2076,109 @@ mod tests {
         let (re, im) = rfft_f64(signal, 0, None);
         let reconstructed = irfft_f64(re, im, 0, None);
         assert_approx_f64(reconstructed, &data, 1e-5);
+    }
+
+    // Padded-pow2 semantics coverage: n=Some(..) path exercised directly on flex.
+
+    #[test]
+    fn rfft_n_larger_than_signal_zero_pads() {
+        // n=8 zero-pads the signal; output has 8/2+1 = 5 bins.
+        let signal = make_f32(vec![1.0, 0.0, 0.0, 0.0], vec![4]);
+        let (re, im) = rfft_f32(signal, 0, Some(8));
+        assert_eq!(re.layout().shape()[0], 5);
+        assert_eq!(im.layout().shape()[0], 5);
+        let re_vals = re.into_data().as_slice::<f32>().unwrap().to_vec();
+        for (k, v) in re_vals.iter().enumerate() {
+            assert!(
+                (v - 1.0).abs() < 1e-5,
+                "impulse DFT re[{k}] should be 1.0, got {v}"
+            );
+        }
+    }
+
+    #[test]
+    fn rfft_n_smaller_than_signal_truncates_first() {
+        // Signal length 8, n=4 -> truncate to 4, compute 4-point DFT of [1,0,0,0].
+        let signal = make_f32(
+            vec![1.0, 0.0, 0.0, 0.0, 99.0, 99.0, 99.0, 99.0],
+            vec![8],
+        );
+        let (re, _im) = rfft_f32(signal, 0, Some(4));
+        assert_eq!(re.layout().shape()[0], 3);
+        let re_vals = re.into_data().as_slice::<f32>().unwrap().to_vec();
+        for v in &re_vals {
+            assert!((v - 1.0).abs() < 1e-5, "expected 1.0, got {v}");
+        }
+    }
+
+    #[test]
+    fn rfft_non_power_of_two_n_outputs_padded_pow2_bins() {
+        // n=5 -> fft_size=8, output 5 bins (8/2+1).
+        let signal = make_f32(vec![1.0, 1.0, 1.0, 1.0, 1.0], vec![5]);
+        let (re, im) = rfft_f32(signal, 0, Some(5));
+        assert_eq!(re.layout().shape()[0], 5);
+        assert_eq!(im.layout().shape()[0], 5);
+        // DC = sum of ones = 5.0
+        let re_vals = re.into_data().as_slice::<f32>().unwrap().to_vec();
+        assert!((re_vals[0] - 5.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn rfft_irfft_roundtrip_with_non_pow2_n() {
+        let data = vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let signal = make_f32(data.clone(), vec![6]);
+        let (re, im) = rfft_f32(signal, 0, Some(6));
+        let reconstructed = irfft_f32(re, im, 0, Some(6));
+        assert_approx(reconstructed, &data, 1e-4);
+    }
+
+    #[test]
+    fn rfft_f64_with_non_pow2_n() {
+        let data: Vec<f64> = (0..5).map(|i| (i as f64 * 0.3).sin()).collect();
+        let signal = make_f64(data.clone(), vec![5]);
+        let (re, im) = rfft_f64(signal, 0, Some(5));
+        // n=5 -> fft_size=8, 5 bins
+        assert_eq!(re.layout().shape()[0], 5);
+        assert_eq!(im.layout().shape()[0], 5);
+    }
+
+    #[test]
+    fn rfft_vs_realfft_with_n() {
+        use realfft::RealFftPlanner;
+
+        let mut planner = RealFftPlanner::<f32>::new();
+        // Check a mix of pow2 and non-pow2 `n` against the reference.
+        for &n in &[4usize, 5, 8, 9, 16] {
+            let fft_size = n.next_power_of_two();
+            let data: Vec<f32> = (0..n).map(|i| (i as f32 * 0.41).cos() - 0.2).collect();
+            let mut padded = data.clone();
+            padded.resize(fft_size, 0.0);
+
+            // Reference: realfft on the pow2-padded signal.
+            let r2c = planner.plan_fft_forward(fft_size);
+            let mut input = padded.clone();
+            let mut ref_spec = r2c.make_output_vec();
+            r2c.process(&mut input, &mut ref_spec).unwrap();
+
+            // Under test: flex rfft with the original (non-pow2) n.
+            let signal = make_f32(data.clone(), vec![n]);
+            let (re, im) = rfft_f32(signal, 0, Some(n));
+            let re_v = re.into_data().as_slice::<f32>().unwrap().to_vec();
+            let im_v = im.into_data().as_slice::<f32>().unwrap().to_vec();
+
+            assert_eq!(re_v.len(), fft_size / 2 + 1);
+            for (k, refc) in ref_spec.iter().enumerate() {
+                let err_re = (re_v[k] - refc.re).abs();
+                let err_im = (im_v[k] - refc.im).abs();
+                assert!(
+                    err_re < 1e-3 && err_im < 1e-3,
+                    "n={n} bin={k}: got ({}, {}), ref ({}, {})",
+                    re_v[k],
+                    im_v[k],
+                    refc.re,
+                    refc.im
+                );
+            }
+        }
     }
 }

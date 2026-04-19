@@ -28,15 +28,16 @@ where $N$ is the size of the signal along the specified dimension.
 /// * `signal` - The input tensor containing the real-valued signal.
 /// * `dim` - The dimension along which to take the FFT.
 /// * `n` - Optional FFT length. When `None`, the signal must be power-of-two along `dim`.
-///   When `Some(n)`, the signal is truncated or zero-padded to length `n`, and `n` does not
-///   need to be a power of two (internal padding is handled automatically).
+///   When `Some(n)`, the signal is truncated or zero-padded to length `n`; `n` does not need
+///   to be a power of two. Backends internally round up to the next power of two, so the
+///   output has `next_pow2(n) / 2 + 1` bins (equals `n / 2 + 1` when `n` is already pow2).
 ///
 /// # Returns
 ///
 /// A tuple containing:
-/// 1. The real part of the spectrum (`n/2 + 1` elements along `dim`, where `n` is the
-///    effective FFT length).
-/// 2. The imaginary part of the spectrum.
+/// 1. The real part of the spectrum. Output length along `dim` is `next_pow2(n) / 2 + 1` when
+///    `n` is `Some(n)`, or `signal_len / 2 + 1` when `n` is `None`.
+/// 2. The imaginary part of the spectrum (same shape).
 ///
 /// # Example
 ///
@@ -96,8 +97,8 @@ where $N$ is the size of the reconstructed signal.
 /// * `spectrum_im` - The imaginary part of the spectrum.
 /// * `dim` - The dimension along which to take the inverse FFT.
 /// * `n` - Optional output signal length. When `None`, the reconstructed signal length
-///   `2 * (size - 1)` must be a power of two. When `Some(n)`, the spectrum is padded or
-///   trimmed to produce exactly `n` output samples.
+///   `2 * (size - 1)` must be a power of two. When `Some(n)`, backends internally perform a
+///   `next_pow2(n)`-point inverse then narrow the output to exactly `n` samples. `n >= 1`.
 ///
 /// # Returns
 ///

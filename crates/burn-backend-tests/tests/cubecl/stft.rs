@@ -192,3 +192,97 @@ fn stft_istft_roundtrip_non_power_of_two_nfft() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&original.into_data(), Tolerance::absolute(1e-3));
 }
+
+#[test]
+fn stft_with_hamming_window() {
+    use burn_tensor::signal::hamming_window;
+    let signal = TestTensor::<2>::from([[1.0; 8]]);
+    let window: TestTensor<1> = hamming_window(4, true, &Default::default());
+    let result = stft(signal, Some(window), opts(4, 2, false, true));
+
+    let [batch, n_frames, n_freqs, two] = result.dims();
+    assert_eq!(batch, 1);
+    assert_eq!(n_frames, 3);
+    assert_eq!(n_freqs, 3);
+    assert_eq!(two, 2);
+}
+
+#[test]
+#[should_panic(expected = "hop_length")]
+fn stft_rejects_hop_greater_than_window() {
+    // hop (5) > effective win_length (4) violates COLA/NOLA; must be rejected.
+    let signal = TestTensor::<2>::from([[1.0; 16]]);
+    let _ = stft(signal, None, opts(4, 5, false, true));
+}
+
+#[test]
+#[should_panic(expected = "n_fft")]
+fn stft_rejects_zero_nfft() {
+    let signal = TestTensor::<2>::from([[1.0; 4]]);
+    let _ = stft(signal, None, opts(0, 1, false, true));
+}
+
+#[test]
+#[should_panic(expected = "hop_length")]
+fn stft_rejects_zero_hop_length() {
+    let signal = TestTensor::<2>::from([[1.0; 4]]);
+    let _ = stft(signal, None, opts(4, 0, false, true));
+}
+
+#[test]
+#[should_panic(expected = "win_length")]
+fn stft_rejects_zero_win_length() {
+    let signal = TestTensor::<2>::from([[1.0; 4]]);
+    let o = StftOptions {
+        n_fft: 4,
+        hop_length: 1,
+        win_length: Some(0),
+        center: false,
+        onesided: true,
+    };
+    let _ = stft(signal, None, o);
+}
+
+#[test]
+#[should_panic(expected = "reflect pad")]
+fn stft_rejects_too_short_signal_with_center() {
+    // n_fft/2 = 2, signal length 2 is not > 2, so reflect pad would fail.
+    let signal = TestTensor::<2>::from([[1.0, 2.0]]);
+    let _ = stft(signal, None, opts(4, 1, true, true));
+}
+
+#[test]
+#[should_panic(expected = "window length")]
+fn istft_rejects_wrong_window_length() {
+    // Synthetic stft matrix: [batch=1, n_frames=3, n_freqs=3, 2 (re/im)].
+    // Values are arbitrary; we only need istft to reach the window-length check.
+    let spectrum: TestTensor<4> = TestTensor::from([[
+        [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+        [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+        [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+    ]]);
+
+    // n_fft=4, effective win_length=3 (per win_length=Some(3)); passed window length=4 mismatches.
+    let bad_window: TestTensor<1> = TestTensor::from([1.0, 1.0, 1.0, 1.0]);
+    let o_bad = StftOptions {
+        n_fft: 4,
+        hop_length: 2,
+        win_length: Some(3),
+        center: false,
+        onesided: true,
+    };
+    let _ = istft(spectrum, Some(bad_window), Some(8), o_bad);
+}
+
+#[test]
+fn stft_options_default_and_new() {
+    // Spot-check the defaults match PyTorch (hop = n_fft/4, center, onesided).
+    let o = StftOptions::new(16);
+    assert_eq!(o.n_fft, 16);
+    assert_eq!(o.hop_length, 4);
+    assert_eq!(o.win_length, None);
+    assert!(o.center);
+    assert!(o.onesided);
+    let d = StftOptions::default();
+    assert_eq!(d.n_fft, 400);
+}
