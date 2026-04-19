@@ -275,6 +275,18 @@ fn istft_rejects_wrong_window_length() {
 }
 
 #[test]
+#[should_panic(expected = "n_freqs")]
+fn istft_rejects_wrong_n_freqs() {
+    // n_fft=4, onesided=true: expected n_freqs = next_pow2(4)/2+1 = 3.
+    // Pass a spectrum with 4 bins to trigger the shape check.
+    let spectrum: TestTensor<4> = TestTensor::from([[
+        [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+        [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+    ]]);
+    let _ = istft(spectrum, None, Some(8), opts(4, 2, false, true));
+}
+
+#[test]
 fn stft_options_default_and_new() {
     // Spot-check the defaults match PyTorch (hop = n_fft/4, center, onesided).
     let o = StftOptions::new(16);

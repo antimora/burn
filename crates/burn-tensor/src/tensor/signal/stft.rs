@@ -241,7 +241,7 @@ pub fn istft<B: Backend>(
     let hop_length = options.hop_length;
     let center = options.center;
     let onesided = options.onesided;
-    let [batch, n_frames, _n_freqs, two] = stft_matrix.dims();
+    let [batch, n_frames, n_freqs_in, two] = stft_matrix.dims();
     assert_eq!(
         two, 2,
         "istft: last dimension of stft_matrix must be 2 (real, imag), got {two}"
@@ -249,6 +249,16 @@ pub fn istft<B: Backend>(
     assert!(
         n_frames >= 1,
         "istft: stft_matrix must contain at least one frame, got n_frames=0"
+    );
+    let expected_n_freqs = if onesided {
+        n_fft.next_power_of_two() / 2 + 1
+    } else {
+        n_fft
+    };
+    assert_eq!(
+        n_freqs_in, expected_n_freqs,
+        "istft: n_freqs dimension ({n_freqs_in}) does not match expected for \
+         n_fft={n_fft}, onesided={onesided} (expected {expected_n_freqs})"
     );
 
     let win_len = options.effective_win_length();
@@ -272,9 +282,8 @@ pub fn istft<B: Backend>(
     let re: Tensor<B, 3> = stft_matrix.clone().narrow(3, 0, 1).squeeze_dim(3);
     let im: Tensor<B, 3> = stft_matrix.narrow(3, 1, 1).squeeze_dim(3);
 
-    let n_freqs = re.dims()[2];
-    let re: Tensor<B, 2> = re.reshape([batch * n_frames, n_freqs]);
-    let im: Tensor<B, 2> = im.reshape([batch * n_frames, n_freqs]);
+    let re: Tensor<B, 2> = re.reshape([batch * n_frames, n_freqs_in]);
+    let im: Tensor<B, 2> = im.reshape([batch * n_frames, n_freqs_in]);
 
     // Extract onesided spectrum for irfft
     let (re_half, im_half) = if onesided {
