@@ -2099,10 +2099,7 @@ mod tests {
     #[test]
     fn rfft_n_smaller_than_signal_truncates_first() {
         // Signal length 8, n=4 -> truncate to 4, compute 4-point DFT of [1,0,0,0].
-        let signal = make_f32(
-            vec![1.0, 0.0, 0.0, 0.0, 99.0, 99.0, 99.0, 99.0],
-            vec![8],
-        );
+        let signal = make_f32(vec![1.0, 0.0, 0.0, 0.0, 99.0, 99.0, 99.0, 99.0], vec![8]);
         let (re, _im) = rfft_f32(signal, 0, Some(4));
         assert_eq!(re.layout().shape()[0], 3);
         let re_vals = re.into_data().as_slice::<f32>().unwrap().to_vec();
