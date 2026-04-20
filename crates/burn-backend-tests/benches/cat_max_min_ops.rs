@@ -38,12 +38,12 @@ fn make_f32_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2> {
 }
 
 fn make_int_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2, Int> {
-    let data: Vec<i64> = (0..rows * cols).map(|i| (i % 10) as i64 + 1).collect();
+    let data: Vec<i32> = (0..rows * cols).map(|i| (i % 10) as i32 + 1).collect();
     Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
 }
 
 fn make_int_exp_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2, Int> {
-    let data: Vec<i64> = (0..rows * cols).map(|i| (i % 4) as i64 + 1).collect();
+    let data: Vec<i32> = (0..rows * cols).map(|i| (i % 4) as i32 + 1).collect();
     Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
 }
 
@@ -52,9 +52,11 @@ fn make_bool_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2, Bool> {
     Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
 }
 
-fn make_indices_1d<B: Backend>(size: usize, max_idx: usize) -> Tensor<B, 1, Int> {
-    let data: Vec<i64> = (0..size).map(|i| (i % max_idx) as i64).collect();
-    Tensor::from_data(TensorData::new(data, [size]), &Default::default())
+fn make_indices_1d<B: Backend>(size: usize, max_idx: usize) -> Option<Tensor<B, 1, Int>> {
+    common::try_setup(|| {
+            let data: Vec<i32> = (0..size).map(|i| (i % max_idx) as i32).collect();
+            Tensor::from_data(TensorData::new(data, [size]), &Default::default())
+    })
 }
 
 fn make_grid_4d<B: Backend>(batch: usize, h_out: usize, w_out: usize) -> Tensor<B, 4> {
@@ -230,14 +232,14 @@ macro_rules! bench_cat {
                 #[divan::bench]
                 fn _256x256_128idx(bencher: Bencher) {
                     let t = make_bool_2d::<B>(256, 256);
-                    let idx = make_indices_1d::<B>(128, 256);
+                    let Some(idx) = make_indices_1d::<B>(128, 256) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| t.clone().select(0, idx.clone()));
                 }
 
                 #[divan::bench]
                 fn _1024x256_512idx(bencher: Bencher) {
                     let t = make_bool_2d::<B>(1024, 256);
-                    let idx = make_indices_1d::<B>(512, 1024);
+                    let Some(idx) = make_indices_1d::<B>(512, 1024) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| t.clone().select(0, idx.clone()));
                 }
             }

@@ -29,14 +29,18 @@ fn make_tensor_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2> {
     Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
 }
 
-fn make_indices_2d<B: Backend>(rows: usize, cols: usize, max_idx: usize) -> Tensor<B, 2, Int> {
-    let data: Vec<i64> = (0..rows * cols).map(|i| (i % max_idx) as i64).collect();
-    Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
+fn make_indices_2d<B: Backend>(rows: usize, cols: usize, max_idx: usize) -> Option<Tensor<B, 2, Int>> {
+    common::try_setup(|| {
+            let data: Vec<i32> = (0..rows * cols).map(|i| (i % max_idx) as i32).collect();
+            Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
+    })
 }
 
-fn make_indices_1d<B: Backend>(size: usize, max_idx: usize) -> Tensor<B, 1, Int> {
-    let data: Vec<i64> = (0..size).map(|i| (i % max_idx) as i64).collect();
-    Tensor::from_data(TensorData::new(data, [size]), &Default::default())
+fn make_indices_1d<B: Backend>(size: usize, max_idx: usize) -> Option<Tensor<B, 1, Int>> {
+    common::try_setup(|| {
+            let data: Vec<i32> = (0..size).map(|i| (i % max_idx) as i32).collect();
+            Tensor::from_data(TensorData::new(data, [size]), &Default::default())
+    })
 }
 
 macro_rules! bench_backend {
@@ -54,21 +58,21 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _256x256_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(256, 256);
-                    let indices = make_indices_2d::<B>(256, 128, 256);
+                    let Some(indices) = make_indices_2d::<B>(256, 128, 256) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| tensor.clone().gather(1, indices.clone()));
                 }
 
                 #[divan::bench]
                 fn _1024x1024_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(1024, 1024);
-                    let indices = make_indices_2d::<B>(1024, 512, 1024);
+                    let Some(indices) = make_indices_2d::<B>(1024, 512, 1024) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| tensor.clone().gather(1, indices.clone()));
                 }
 
                 #[divan::bench]
                 fn _256x256_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(256, 256);
-                    let indices = make_indices_2d::<B>(128, 256, 256);
+                    let Some(indices) = make_indices_2d::<B>(128, 256, 256) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| tensor.clone().gather(0, indices.clone()));
                 }
             }
@@ -80,7 +84,7 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _256x256_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(256, 256);
-                    let indices = make_indices_2d::<B>(256, 128, 256);
+                    let Some(indices) = make_indices_2d::<B>(256, 128, 256) else { bencher.bench(|| ()); return; };
                     let values = make_tensor_2d::<B>(256, 128);
                     bencher.bench_synced(|| {
                         tensor.clone().scatter(
@@ -95,7 +99,7 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _1024x1024_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(1024, 1024);
-                    let indices = make_indices_2d::<B>(1024, 512, 1024);
+                    let Some(indices) = make_indices_2d::<B>(1024, 512, 1024) else { bencher.bench(|| ()); return; };
                     let values = make_tensor_2d::<B>(1024, 512);
                     bencher.bench_synced(|| {
                         tensor.clone().scatter(
@@ -115,21 +119,21 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _256x256_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(256, 256);
-                    let indices = make_indices_1d::<B>(128, 256);
+                    let Some(indices) = make_indices_1d::<B>(128, 256) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| tensor.clone().select(0, indices.clone()));
                 }
 
                 #[divan::bench]
                 fn _1024x1024_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(1024, 1024);
-                    let indices = make_indices_1d::<B>(512, 1024);
+                    let Some(indices) = make_indices_1d::<B>(512, 1024) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| tensor.clone().select(0, indices.clone()));
                 }
 
                 #[divan::bench]
                 fn _256x256_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(256, 256);
-                    let indices = make_indices_1d::<B>(128, 256);
+                    let Some(indices) = make_indices_1d::<B>(128, 256) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| tensor.clone().select(1, indices.clone()));
                 }
             }
@@ -141,7 +145,7 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _256x256_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(256, 256);
-                    let indices = make_indices_1d::<B>(128, 256);
+                    let Some(indices) = make_indices_1d::<B>(128, 256) else { bencher.bench(|| ()); return; };
                     let values = make_tensor_2d::<B>(128, 256);
                     bencher.bench_synced(|| {
                         tensor.clone().select_assign(
@@ -156,7 +160,7 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _1024x1024_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(1024, 1024);
-                    let indices = make_indices_1d::<B>(512, 1024);
+                    let Some(indices) = make_indices_1d::<B>(512, 1024) else { bencher.bench(|| ()); return; };
                     let values = make_tensor_2d::<B>(512, 1024);
                     bencher.bench_synced(|| {
                         tensor.clone().select_assign(

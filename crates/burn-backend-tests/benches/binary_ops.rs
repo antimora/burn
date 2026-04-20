@@ -39,14 +39,18 @@ fn make_tensor_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2> {
     Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
 }
 
-fn make_int_tensor<B: Backend>(size: usize) -> Tensor<B, 1, Int> {
-    let data: Vec<i64> = (0..size).map(|i| (i % 1000) as i64).collect();
-    Tensor::from_data(TensorData::new(data, [size]), &Default::default())
+fn make_int_tensor<B: Backend>(size: usize) -> Option<Tensor<B, 1, Int>> {
+    common::try_setup(|| {
+            let data: Vec<i32> = (0..size).map(|i| (i % 1000) as i32).collect();
+            Tensor::from_data(TensorData::new(data, [size]), &Default::default())
+    })
 }
 
-fn make_int_tensor_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2, Int> {
-    let data: Vec<i64> = (0..rows * cols).map(|i| (i % 1000) as i64).collect();
-    Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
+fn make_int_tensor_2d<B: Backend>(rows: usize, cols: usize) -> Option<Tensor<B, 2, Int>> {
+    common::try_setup(|| {
+            let data: Vec<i32> = (0..rows * cols).map(|i| (i % 1000) as i32).collect();
+            Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
+    })
 }
 
 macro_rules! bench_backend {
@@ -228,22 +232,22 @@ macro_rules! bench_int_backend {
 
                 #[divan::bench]
                 fn small(bencher: Bencher) {
-                    let a = make_int_tensor::<B>(SMALL);
-                    let b = make_int_tensor::<B>(SMALL);
+                    let Some(a) = make_int_tensor::<B>(SMALL) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_tensor::<B>(SMALL) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone() + b.clone());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
-                    let a = make_int_tensor::<B>(MEDIUM);
-                    let b = make_int_tensor::<B>(MEDIUM);
+                    let Some(a) = make_int_tensor::<B>(MEDIUM) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_tensor::<B>(MEDIUM) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone() + b.clone());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
-                    let a = make_int_tensor::<B>(LARGE);
-                    let b = make_int_tensor::<B>(LARGE);
+                    let Some(a) = make_int_tensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_tensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone() + b.clone());
                 }
             }
@@ -254,22 +258,22 @@ macro_rules! bench_int_backend {
 
                 #[divan::bench]
                 fn small(bencher: Bencher) {
-                    let a = make_int_tensor::<B>(SMALL);
-                    let b = make_int_tensor::<B>(SMALL);
+                    let Some(a) = make_int_tensor::<B>(SMALL) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_tensor::<B>(SMALL) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone() * b.clone());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
-                    let a = make_int_tensor::<B>(MEDIUM);
-                    let b = make_int_tensor::<B>(MEDIUM);
+                    let Some(a) = make_int_tensor::<B>(MEDIUM) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_tensor::<B>(MEDIUM) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone() * b.clone());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
-                    let a = make_int_tensor::<B>(LARGE);
-                    let b = make_int_tensor::<B>(LARGE);
+                    let Some(a) = make_int_tensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_tensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone() * b.clone());
                 }
             }
@@ -280,9 +284,9 @@ macro_rules! bench_int_backend {
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
-                    let a = make_int_tensor::<B>(LARGE);
+                    let Some(a) = make_int_tensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
                     // Avoid division by zero
-                    let data: Vec<i64> = (0..LARGE).map(|i| (i % 999) as i64 + 1).collect();
+                    let data: Vec<i32> = (0..LARGE).map(|i| (i % 999) as i32 + 1).collect();
                     let b: Tensor<B, 1, Int> =
                         Tensor::from_data(TensorData::new(data, [LARGE]), &Default::default());
                     bencher.bench_synced(|| a.clone() / b.clone());
@@ -295,15 +299,17 @@ macro_rules! bench_int_backend {
 
                 #[divan::bench]
                 fn medium_256x256(bencher: Bencher) {
-                    let a = make_int_tensor_2d::<B>(256, 256).transpose();
-                    let b = make_int_tensor_2d::<B>(256, 256);
+                    let Some(a) = make_int_tensor_2d::<B>(256, 256) else { bencher.bench(|| ()); return; };
+                    let a = a.transpose();
+                    let Some(b) = make_int_tensor_2d::<B>(256, 256) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone() + b.clone());
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
-                    let a = make_int_tensor_2d::<B>(1024, 1024).transpose();
-                    let b = make_int_tensor_2d::<B>(1024, 1024);
+                    let Some(a) = make_int_tensor_2d::<B>(1024, 1024) else { bencher.bench(|| ()); return; };
+                    let a = a.transpose();
+                    let Some(b) = make_int_tensor_2d::<B>(1024, 1024) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone() + b.clone());
                 }
             }
@@ -314,13 +320,13 @@ macro_rules! bench_int_backend {
 
                 #[divan::bench]
                 fn add_large(bencher: Bencher) {
-                    let a = make_int_tensor::<B>(LARGE);
+                    let Some(a) = make_int_tensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone() + 100);
                 }
 
                 #[divan::bench]
                 fn mul_large(bencher: Bencher) {
-                    let a = make_int_tensor::<B>(LARGE);
+                    let Some(a) = make_int_tensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone() * 3);
                 }
             }

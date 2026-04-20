@@ -100,8 +100,16 @@ mod irfft_1d {
     use super::*;
 
     fn bench_irfft(bencher: Bencher, n: usize) {
-        let s = make_signal_1d(n);
-        let (re, im) = rfft(s, 0);
+        // rfft is used to produce the input spectrum; if the backend doesn't implement it the
+        // setup panics before bench_synced's catch_unwind. Use try_setup to record and fall
+        // through to a no-op.
+        let Some((re, im)) = common::try_setup(|| {
+            let s = make_signal_1d(n);
+            rfft(s, 0)
+        }) else {
+            bencher.bench(|| ());
+            return;
+        };
         bencher.bench_synced(|| irfft(re.clone(), im.clone(), 0));
     }
 

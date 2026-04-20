@@ -222,22 +222,24 @@ macro_rules! bench_backend {
                     batch: usize,
                     seq: usize,
                     vocab: usize,
-                ) -> Tensor<B, 2, Int> {
-                    let data: Vec<i64> = (0..batch * seq).map(|i| (i % vocab) as i64).collect();
-                    Tensor::from_data(TensorData::new(data, [batch, seq]), &Default::default())
+                ) -> Option<Tensor<B, 2, Int>> {
+                    common::try_setup(|| {
+                        let data: Vec<i32> = (0..batch * seq).map(|i| (i % vocab) as i32).collect();
+                        Tensor::from_data(TensorData::new(data, [batch, seq]), &Default::default())
+                    })
                 }
 
                 #[divan::bench]
                 fn vocab30k_dim512_batch8_seq128(bencher: Bencher) {
                     let weights = make_weights::<B>(30000, 512);
-                    let indices = make_indices::<B>(8, 128, 30000);
+                    let Some(indices) = make_indices::<B>(8, 128, 30000) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| module::embedding(weights.clone(), indices.clone()));
                 }
 
                 #[divan::bench]
                 fn vocab50k_dim768_batch4_seq256(bencher: Bencher) {
                     let weights = make_weights::<B>(50000, 768);
-                    let indices = make_indices::<B>(4, 256, 50000);
+                    let Some(indices) = make_indices::<B>(4, 256, 50000) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| module::embedding(weights.clone(), indices.clone()));
                 }
             }

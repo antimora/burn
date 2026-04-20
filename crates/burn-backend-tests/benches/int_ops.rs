@@ -26,7 +26,7 @@ fn main() {
 fn make_int_tensor<B: Backend>(shape: &[usize]) -> Tensor<B, 2, Int> {
     let size: usize = shape.iter().product();
     // Use values that fit in i8 (-128 to 127) so all casts work
-    let data: Vec<i64> = (0..size).map(|i| (i % 200) as i64 - 100).collect();
+    let data: Vec<i32> = (0..size).map(|i| (i % 200) as i32 - 100).collect();
     Tensor::from_data(TensorData::new(data, shape.to_vec()), &Default::default())
 }
 

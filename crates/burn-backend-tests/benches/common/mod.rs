@@ -77,6 +77,28 @@ fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
     }
 }
 
+/// Run a setup closure tolerantly: if it panics (typically because the backend doesn't support
+/// an op used during setup), returns `None` and records the failure location. Lets benches that
+/// rely on op-heavy setup (e.g. `make_qtensor` calls `quantize_dynamic`, fft inverse benches call
+/// `rfft` to produce the input) fall through to a no-op without taking down the whole binary.
+#[track_caller]
+pub fn try_setup<T>(f: impl FnOnce() -> T) -> Option<T> {
+    let loc = Location::caller();
+    SUPPRESS_PANIC_OUTPUT.with(|s| s.set(true));
+    let r = panic::catch_unwind(AssertUnwindSafe(f));
+    SUPPRESS_PANIC_OUTPUT.with(|s| s.set(false));
+    match r {
+        Ok(v) => Some(v),
+        Err(payload) => {
+            FAILURES.lock().unwrap().push(BenchFailure {
+                location: format!("{}:{} (setup)", loc.file(), loc.line()),
+                message: panic_message(payload),
+            });
+            None
+        }
+    }
+}
+
 /// Print a summary of benches that panicked during this run, if any. Call from `main()` after
 /// `divan::main()`.
 pub fn report_failures() {
