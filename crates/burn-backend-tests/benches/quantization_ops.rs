@@ -5,8 +5,10 @@
 //! cargo bench --bench quantization_ops
 //! ```
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{Tensor, TensorData, backend::Backend, quantization::QTensorPrimitive};
 use divan::{AllocProfiler, Bencher};
 
@@ -62,19 +64,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn small(bencher: Bencher) {
                     let scheme = <B as Backend>::QuantizedTensorPrimitive::default_scheme();
-                    bencher.bench(|| make_tensor::<B>(SMALL).quantize_dynamic(&scheme));
+                    bencher.bench_synced(|| make_tensor::<B>(SMALL).quantize_dynamic(&scheme));
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
                     let scheme = <B as Backend>::QuantizedTensorPrimitive::default_scheme();
-                    bencher.bench(|| make_tensor::<B>(MEDIUM).quantize_dynamic(&scheme));
+                    bencher.bench_synced(|| make_tensor::<B>(MEDIUM).quantize_dynamic(&scheme));
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let scheme = <B as Backend>::QuantizedTensorPrimitive::default_scheme();
-                    bencher.bench(|| make_tensor::<B>(LARGE).quantize_dynamic(&scheme));
+                    bencher.bench_synced(|| make_tensor::<B>(LARGE).quantize_dynamic(&scheme));
                 }
             }
 
@@ -85,19 +87,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn small(bencher: Bencher) {
                     let qt = make_qtensor::<B>(SMALL);
-                    bencher.bench(|| qt.clone().dequantize());
+                    bencher.bench_synced(|| qt.clone().dequantize());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
                     let qt = make_qtensor::<B>(MEDIUM);
-                    bencher.bench(|| qt.clone().dequantize());
+                    bencher.bench_synced(|| qt.clone().dequantize());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let qt = make_qtensor::<B>(LARGE);
-                    bencher.bench(|| qt.clone().dequantize());
+                    bencher.bench_synced(|| qt.clone().dequantize());
                 }
             }
 
@@ -109,21 +111,21 @@ macro_rules! bench_backend {
                 fn small(bencher: Bencher) {
                     let a = make_qtensor::<B>(SMALL);
                     let b = make_qtensor::<B>(SMALL);
-                    bencher.bench(|| a.clone() + b.clone());
+                    bencher.bench_synced(|| a.clone() + b.clone());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
                     let a = make_qtensor::<B>(MEDIUM);
                     let b = make_qtensor::<B>(MEDIUM);
-                    bencher.bench(|| a.clone() + b.clone());
+                    bencher.bench_synced(|| a.clone() + b.clone());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_qtensor::<B>(LARGE);
                     let b = make_qtensor::<B>(LARGE);
-                    bencher.bench(|| a.clone() + b.clone());
+                    bencher.bench_synced(|| a.clone() + b.clone());
                 }
             }
 
@@ -135,21 +137,21 @@ macro_rules! bench_backend {
                 fn mat_64x64(bencher: Bencher) {
                     let a = make_qmatrix::<B>(64, 64);
                     let b = make_qmatrix::<B>(64, 64);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn mat_256x256(bencher: Bencher) {
                     let a = make_qmatrix::<B>(256, 256);
                     let b = make_qmatrix::<B>(256, 256);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn mat_512x512(bencher: Bencher) {
                     let a = make_qmatrix::<B>(512, 512);
                     let b = make_qmatrix::<B>(512, 512);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }
 
@@ -160,19 +162,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn small(bencher: Bencher) {
                     let qt = make_qtensor::<B>(SMALL);
-                    bencher.bench(|| qt.clone().sum());
+                    bencher.bench_synced(|| qt.clone().sum());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
                     let qt = make_qtensor::<B>(MEDIUM);
-                    bencher.bench(|| qt.clone().sum());
+                    bencher.bench_synced(|| qt.clone().sum());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let qt = make_qtensor::<B>(LARGE);
-                    bencher.bench(|| qt.clone().sum());
+                    bencher.bench_synced(|| qt.clone().sum());
                 }
             }
 
@@ -183,13 +185,13 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn medium_256x256(bencher: Bencher) {
                     let qt = make_qmatrix::<B>(256, 256);
-                    bencher.bench(|| qt.clone().permute([1, 0]));
+                    bencher.bench_synced(|| qt.clone().permute([1, 0]));
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
                     let qt = make_qmatrix::<B>(1024, 1024);
-                    bencher.bench(|| qt.clone().permute([1, 0]));
+                    bencher.bench_synced(|| qt.clone().permute([1, 0]));
                 }
             }
 
@@ -200,13 +202,13 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn medium_256x256(bencher: Bencher) {
                     let qt = make_qmatrix::<B>(256, 256);
-                    bencher.bench(|| qt.clone().argmax(1));
+                    bencher.bench_synced(|| qt.clone().argmax(1));
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
                     let qt = make_qmatrix::<B>(1024, 1024);
-                    bencher.bench(|| qt.clone().argmax(1));
+                    bencher.bench_synced(|| qt.clone().argmax(1));
                 }
             }
 
@@ -217,13 +219,13 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn medium_256x256(bencher: Bencher) {
                     let qt = make_qmatrix::<B>(256, 256);
-                    bencher.bench(|| qt.clone().argmin(1));
+                    bencher.bench_synced(|| qt.clone().argmin(1));
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
                     let qt = make_qmatrix::<B>(1024, 1024);
-                    bencher.bench(|| qt.clone().argmin(1));
+                    bencher.bench_synced(|| qt.clone().argmin(1));
                 }
             }
 
@@ -244,19 +246,18 @@ macro_rules! bench_backend {
                 fn medium_256x256(bencher: Bencher) {
                     let qt = make_qmatrix::<B>(256, 256);
                     let indices = make_indices::<B>(256, 256);
-                    bencher.bench(|| qt.clone().gather(1, indices.clone()));
+                    bencher.bench_synced(|| qt.clone().gather(1, indices.clone()));
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
                     let qt = make_qmatrix::<B>(1024, 1024);
                     let indices = make_indices::<B>(1024, 1024);
-                    bencher.bench(|| qt.clone().gather(1, indices.clone()));
+                    bencher.bench_synced(|| qt.clone().gather(1, indices.clone()));
                 }
             }
         }
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");

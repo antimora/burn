@@ -7,9 +7,11 @@
 //!
 //! Memory allocation tracking is enabled via divan's AllocProfiler.
 
-use burn_backend::ops::ConvTransposeOptions;
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
+use burn_tensor::ops::ConvTransposeOptions;
 use burn_tensor::{Tensor, TensorData, backend::Backend, module};
 use divan::{AllocProfiler, Bencher};
 
@@ -130,7 +132,7 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 64, 7, 7);
                     let w = make_weight_2d::<B>(64, 64, 4, 4);
                     let opts = ConvTransposeOptions::new([2, 2], [1, 1], [0, 0], [1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose2d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -140,7 +142,7 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 128, 14, 14);
                     let w = make_weight_2d::<B>(128, 64, 4, 4);
                     let opts = ConvTransposeOptions::new([2, 2], [1, 1], [0, 0], [1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose2d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -150,7 +152,7 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 256, 28, 28);
                     let w = make_weight_2d::<B>(256, 128, 4, 4);
                     let opts = ConvTransposeOptions::new([2, 2], [1, 1], [0, 0], [1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose2d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -161,7 +163,7 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(8, 64, 14, 14);
                     let w = make_weight_2d::<B>(64, 64, 4, 4);
                     let opts = ConvTransposeOptions::new([2, 2], [1, 1], [0, 0], [1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose2d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -172,7 +174,7 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 512, 7, 7);
                     let w = make_weight_2d::<B>(512, 512, 3, 3);
                     let opts = ConvTransposeOptions::new([1, 1], [1, 1], [0, 0], [1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose2d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -188,7 +190,7 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 512, 1, 1);
                     let w = make_weight_2d::<B>(512, 256, 4, 4);
                     let opts = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose2d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -198,7 +200,7 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 256, 4, 4);
                     let w = make_weight_2d::<B>(256, 128, 4, 4);
                     let opts = ConvTransposeOptions::new([2, 2], [1, 1], [0, 0], [1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose2d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -208,7 +210,7 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 128, 8, 8);
                     let w = make_weight_2d::<B>(128, 64, 4, 4);
                     let opts = ConvTransposeOptions::new([2, 2], [1, 1], [0, 0], [1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose2d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -218,7 +220,7 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 64, 16, 16);
                     let w = make_weight_2d::<B>(64, 3, 4, 4);
                     let opts = ConvTransposeOptions::new([2, 2], [1, 1], [0, 0], [1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose2d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -233,7 +235,7 @@ macro_rules! bench_backend {
                     let x = make_input_1d::<B>(1, 64, 32);
                     let w = make_weight_1d::<B>(64, 64, 4);
                     let opts = ConvTransposeOptions::new([2], [1], [0], [1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose1d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -243,7 +245,7 @@ macro_rules! bench_backend {
                     let x = make_input_1d::<B>(8, 128, 64);
                     let w = make_weight_1d::<B>(128, 64, 4);
                     let opts = ConvTransposeOptions::new([2], [1], [0], [1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose1d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -253,7 +255,7 @@ macro_rules! bench_backend {
                     let x = make_input_1d::<B>(1, 256, 128);
                     let w = make_weight_1d::<B>(256, 128, 4);
                     let opts = ConvTransposeOptions::new([2], [1], [0], [1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose1d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -269,7 +271,7 @@ macro_rules! bench_backend {
                     let w = make_weight_3d::<B>(32, 32, 4, 4, 4);
                     let opts =
                         ConvTransposeOptions::new([2, 2, 2], [1, 1, 1], [0, 0, 0], [1, 1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose3d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -280,7 +282,7 @@ macro_rules! bench_backend {
                     let w = make_weight_3d::<B>(64, 32, 4, 4, 4);
                     let opts =
                         ConvTransposeOptions::new([2, 2, 2], [1, 1, 1], [0, 0, 0], [1, 1, 1], 1);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::conv_transpose3d::<B>(x.clone(), w.clone(), None, opts.clone())
                     });
                 }
@@ -289,5 +291,4 @@ macro_rules! bench_backend {
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");

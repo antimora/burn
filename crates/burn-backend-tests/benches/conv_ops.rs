@@ -7,8 +7,10 @@
 //!
 //! Memory allocation tracking is enabled via divan's AllocProfiler.
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{Tensor, TensorData, backend::Backend, module, ops::ConvOptions};
 use divan::{AllocProfiler, Bencher};
 
@@ -84,7 +86,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 3, 32, 32);
                     let w = make_kernel_2d::<B>(16, 3, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -92,7 +96,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 16, 32, 32);
                     let w = make_kernel_2d::<B>(32, 16, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -100,7 +106,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 32, 16, 16);
                     let w = make_kernel_2d::<B>(64, 32, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
             }
 
@@ -113,7 +121,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(8, 3, 64, 64);
                     let w = make_kernel_2d::<B>(32, 3, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -121,7 +131,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(8, 32, 64, 64);
                     let w = make_kernel_2d::<B>(64, 32, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -129,7 +141,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(8, 64, 32, 32);
                     let w = make_kernel_2d::<B>(128, 64, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
             }
 
@@ -142,7 +156,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(16, 64, 128, 128);
                     let w = make_kernel_2d::<B>(128, 64, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -150,7 +166,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(16, 128, 64, 64);
                     let w = make_kernel_2d::<B>(256, 128, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
             }
 
@@ -163,7 +181,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 3, 224, 224);
                     let w = make_kernel_2d::<B>(64, 3, 7, 7);
                     let opts = ConvOptions::new([2, 2], [3, 3], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -171,7 +191,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 64, 56, 56);
                     let w = make_kernel_2d::<B>(64, 64, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -179,7 +201,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 128, 28, 28);
                     let w = make_kernel_2d::<B>(128, 128, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -187,7 +211,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 256, 14, 14);
                     let w = make_kernel_2d::<B>(256, 256, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -195,7 +221,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 512, 7, 7);
                     let w = make_kernel_2d::<B>(512, 512, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
             }
 
@@ -208,7 +236,9 @@ macro_rules! bench_backend {
                     let x = make_input_1d::<B>(1, 16, 256);
                     let w = make_kernel_1d::<B>(32, 16, 3);
                     let opts = ConvOptions::new([1], [1], [1], 1);
-                    bencher.bench(|| module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -216,7 +246,9 @@ macro_rules! bench_backend {
                     let x = make_input_1d::<B>(8, 32, 512);
                     let w = make_kernel_1d::<B>(64, 32, 5);
                     let opts = ConvOptions::new([1], [2], [1], 1);
-                    bencher.bench(|| module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -224,7 +256,9 @@ macro_rules! bench_backend {
                     let x = make_input_1d::<B>(16, 64, 1024);
                     let w = make_kernel_1d::<B>(128, 64, 7);
                     let opts = ConvOptions::new([1], [3], [1], 1);
-                    bencher.bench(|| module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
             }
 
@@ -240,7 +274,9 @@ macro_rules! bench_backend {
                     let x = make_input_1d::<B>(8, 32, 512);
                     let w = make_kernel_1d::<B>(32, 1, 3);
                     let opts = ConvOptions::new([1], [1], [1], 32);
-                    bencher.bench(|| module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -248,7 +284,9 @@ macro_rules! bench_backend {
                     let x = make_input_1d::<B>(8, 64, 1024);
                     let w = make_kernel_1d::<B>(64, 1, 7);
                     let opts = ConvOptions::new([1], [3], [1], 64);
-                    bencher.bench(|| module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -258,7 +296,9 @@ macro_rules! bench_backend {
                     let x = make_input_1d::<B>(4, 128, 2048);
                     let w = make_kernel_1d::<B>(128, 1, 15);
                     let opts = ConvOptions::new([1], [7], [1], 128);
-                    bencher.bench(|| module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -266,7 +306,9 @@ macro_rules! bench_backend {
                     let x = make_input_1d::<B>(8, 64, 1024);
                     let w = make_kernel_1d::<B>(64, 1, 3);
                     let opts = ConvOptions::new([2], [1], [1], 64);
-                    bencher.bench(|| module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv1d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
             }
 
@@ -284,7 +326,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 3, 488, 448);
                     let w = make_kernel_2d::<B>(3, 3, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -292,7 +336,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 3, 488, 448);
                     let w = make_kernel_2d::<B>(3, 3, 1, 3);
                     let opts = ConvOptions::new([1, 1], [0, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -300,7 +346,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 3, 488, 448);
                     let w = make_kernel_2d::<B>(3, 3, 3, 1);
                     let opts = ConvOptions::new([1, 1], [1, 0], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -309,7 +357,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 3, 488, 448);
                     let w = make_kernel_2d::<B>(3, 3, 1, 5);
                     let opts = ConvOptions::new([1, 1], [0, 2], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -318,7 +368,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 3, 488, 448);
                     let w = make_kernel_2d::<B>(3, 3, 5, 1);
                     let opts = ConvOptions::new([1, 1], [2, 0], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -327,7 +379,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 4, 128, 128);
                     let w = make_kernel_2d::<B>(12, 4, 4, 4);
                     let opts = ConvOptions::new([2, 2], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -336,7 +390,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 3, 488, 448);
                     let w = make_kernel_2d::<B>(8, 3, 5, 5);
                     let opts = ConvOptions::new([1, 1], [2, 2], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -345,7 +401,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(1, 1, 256, 256);
                     let w = make_kernel_2d::<B>(8, 1, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -356,7 +414,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 3, 224, 224);
                     let w = make_kernel_2d::<B>(64, 3, 7, 7);
                     let opts = ConvOptions::new([2, 2], [3, 3], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
             }
 
@@ -369,7 +429,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 64, 56, 56);
                     let w = make_kernel_2d::<B>(128, 64, 1, 1);
                     let opts = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -377,7 +439,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 64, 56, 56);
                     let w = make_kernel_2d::<B>(128, 64, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -385,7 +449,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 64, 56, 56);
                     let w = make_kernel_2d::<B>(128, 64, 5, 5);
                     let opts = ConvOptions::new([1, 1], [2, 2], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -393,7 +459,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 64, 56, 56);
                     let w = make_kernel_2d::<B>(128, 64, 7, 7);
                     let opts = ConvOptions::new([1, 1], [3, 3], [1, 1], 1);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
             }
 
@@ -409,7 +477,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 32, 56, 56);
                     let w = make_kernel_2d::<B>(32, 1, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 32);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -417,7 +487,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 96, 28, 28);
                     let w = make_kernel_2d::<B>(96, 1, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 96);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -425,7 +497,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 192, 14, 14);
                     let w = make_kernel_2d::<B>(192, 1, 3, 3);
                     let opts = ConvOptions::new([1, 1], [1, 1], [1, 1], 192);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -435,7 +509,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 24, 56, 56);
                     let w = make_kernel_2d::<B>(24, 1, 7, 7);
                     let opts = ConvOptions::new([1, 1], [3, 3], [1, 1], 24);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -444,7 +520,9 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 48, 56, 56);
                     let w = make_kernel_2d::<B>(48, 1, 7, 7);
                     let opts = ConvOptions::new([1, 1], [3, 3], [1, 1], 48);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
 
                 #[divan::bench]
@@ -453,12 +531,13 @@ macro_rules! bench_backend {
                     let x = make_input_2d::<B>(4, 64, 56, 56);
                     let w = make_kernel_2d::<B>(64, 1, 3, 3);
                     let opts = ConvOptions::new([2, 2], [1, 1], [1, 1], 64);
-                    bencher.bench(|| module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone()));
+                    bencher.bench_synced(|| {
+                        module::conv2d::<B>(x.clone(), w.clone(), None, opts.clone())
+                    });
                 }
             }
         }
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");

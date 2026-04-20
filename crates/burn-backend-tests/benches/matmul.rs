@@ -7,8 +7,10 @@
 //!
 //! Memory allocation tracking is enabled via divan's AllocProfiler.
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{Tensor, TensorData, backend::Backend};
 use divan::{AllocProfiler, Bencher};
 
@@ -56,35 +58,35 @@ macro_rules! bench_backend {
                 fn matmul_64x64(bencher: Bencher) {
                     let a = make_matrix::<B>(64, 64);
                     let b = make_matrix::<B>(64, 64);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn matmul_128x128(bencher: Bencher) {
                     let a = make_matrix::<B>(128, 128);
                     let b = make_matrix::<B>(128, 128);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn matmul_256x256(bencher: Bencher) {
                     let a = make_matrix::<B>(256, 256);
                     let b = make_matrix::<B>(256, 256);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn matmul_512x512(bencher: Bencher) {
                     let a = make_matrix::<B>(512, 512);
                     let b = make_matrix::<B>(512, 512);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn matmul_1024x1024(bencher: Bencher) {
                     let a = make_matrix::<B>(1024, 1024);
                     let b = make_matrix::<B>(1024, 1024);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }
 
@@ -98,7 +100,7 @@ macro_rules! bench_backend {
                 fn linear_256x512_512x256(bencher: Bencher) {
                     let a = make_matrix::<B>(256, 512);
                     let b = make_matrix::<B>(512, 256);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 // Attention: [seq, hidden] x [hidden, seq]
@@ -106,7 +108,7 @@ macro_rules! bench_backend {
                 fn attention_512x64_64x512(bencher: Bencher) {
                     let a = make_matrix::<B>(512, 64);
                     let b = make_matrix::<B>(64, 512);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 // Wide matrix (embedding lookup style)
@@ -114,7 +116,7 @@ macro_rules! bench_backend {
                 fn wide_128x1024_1024x128(bencher: Bencher) {
                     let a = make_matrix::<B>(128, 1024);
                     let b = make_matrix::<B>(1024, 128);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }
 
@@ -127,21 +129,21 @@ macro_rules! bench_backend {
                 fn batch8_64x64(bencher: Bencher) {
                     let a = make_batch_matrix::<B>(8, 64, 64);
                     let b = make_batch_matrix::<B>(8, 64, 64);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn batch16_128x128(bencher: Bencher) {
                     let a = make_batch_matrix::<B>(16, 128, 128);
                     let b = make_batch_matrix::<B>(16, 128, 128);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn batch32_64x64(bencher: Bencher) {
                     let a = make_batch_matrix::<B>(32, 64, 64);
                     let b = make_batch_matrix::<B>(32, 64, 64);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 // Transformer attention heads
@@ -149,7 +151,7 @@ macro_rules! bench_backend {
                 fn heads12_seq512_dim64(bencher: Bencher) {
                     let a = make_batch_matrix::<B>(12, 512, 64);
                     let b = make_batch_matrix::<B>(12, 64, 512);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }
 
@@ -162,29 +164,28 @@ macro_rules! bench_backend {
                 fn lhs_transposed_256x256(bencher: Bencher) {
                     let a = make_matrix::<B>(256, 256).transpose();
                     let b = make_matrix::<B>(256, 256);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn rhs_transposed_256x256(bencher: Bencher) {
                     let a = make_matrix::<B>(256, 256);
                     let b = make_matrix::<B>(256, 256).transpose();
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn both_transposed_256x256(bencher: Bencher) {
                     let a = make_matrix::<B>(256, 256).transpose();
                     let b = make_matrix::<B>(256, 256).transpose();
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }
         }
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");
 
 // Integer matmul benchmarks
 fn make_int_matrix<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2, burn_tensor::Int> {
@@ -222,28 +223,28 @@ macro_rules! bench_int_backend {
                 fn matmul_64x64(bencher: Bencher) {
                     let a = make_int_matrix::<B>(64, 64);
                     let b = make_int_matrix::<B>(64, 64);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn matmul_128x128(bencher: Bencher) {
                     let a = make_int_matrix::<B>(128, 128);
                     let b = make_int_matrix::<B>(128, 128);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn matmul_256x256(bencher: Bencher) {
                     let a = make_int_matrix::<B>(256, 256);
                     let b = make_int_matrix::<B>(256, 256);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn matmul_512x512(bencher: Bencher) {
                     let a = make_int_matrix::<B>(512, 512);
                     let b = make_int_matrix::<B>(512, 512);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }
 
@@ -255,22 +256,21 @@ macro_rules! bench_int_backend {
                 fn batch8_64x64(bencher: Bencher) {
                     let a = make_int_batch_matrix::<B>(8, 64, 64);
                     let b = make_int_batch_matrix::<B>(8, 64, 64);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn batch16_128x128(bencher: Bencher) {
                     let a = make_int_batch_matrix::<B>(16, 128, 128);
                     let b = make_int_batch_matrix::<B>(16, 128, 128);
-                    bencher.bench(|| a.clone().matmul(b.clone()));
+                    bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }
         }
     };
 }
 
-bench_int_backend!(Flex, flex_int, "Flex_Int");
-bench_int_backend!(NdArray, ndarray_int, "NdArray_Int");
+bench_int_backend!(TestBackend, backend_int, "backend_int");
 
 // Broadcast matmul benchmarks
 fn make_batch_matrix_4d<B: Backend>(
@@ -301,7 +301,7 @@ macro_rules! bench_broadcast_backend {
             fn broadcast_1_vs_8_64x64(bencher: Bencher) {
                 let a = make_batch_matrix::<B>(1, 64, 64);
                 let b = make_batch_matrix::<B>(8, 64, 64);
-                bencher.bench(|| a.clone().matmul(b.clone()));
+                bencher.bench_synced(|| a.clone().matmul(b.clone()));
             }
 
             // Broadcast: [batch, M, K] x [1, K, N] -> [batch, M, N]
@@ -309,7 +309,7 @@ macro_rules! bench_broadcast_backend {
             fn broadcast_8_vs_1_64x64(bencher: Bencher) {
                 let a = make_batch_matrix::<B>(8, 64, 64);
                 let b = make_batch_matrix::<B>(1, 64, 64);
-                bencher.bench(|| a.clone().matmul(b.clone()));
+                bencher.bench_synced(|| a.clone().matmul(b.clone()));
             }
 
             // 4D broadcast: [2, 1, M, K] x [1, 4, K, N] -> [2, 4, M, N]
@@ -317,7 +317,7 @@ macro_rules! bench_broadcast_backend {
             fn broadcast_4d_2x1_vs_1x4_32x32(bencher: Bencher) {
                 let a = make_batch_matrix_4d::<B>(2, 1, 32, 32);
                 let b = make_batch_matrix_4d::<B>(1, 4, 32, 32);
-                bencher.bench(|| a.clone().matmul(b.clone()));
+                bencher.bench_synced(|| a.clone().matmul(b.clone()));
             }
 
             // Larger 4D broadcast
@@ -325,11 +325,10 @@ macro_rules! bench_broadcast_backend {
             fn broadcast_4d_4x1_vs_1x4_64x64(bencher: Bencher) {
                 let a = make_batch_matrix_4d::<B>(4, 1, 64, 64);
                 let b = make_batch_matrix_4d::<B>(1, 4, 64, 64);
-                bencher.bench(|| a.clone().matmul(b.clone()));
+                bencher.bench_synced(|| a.clone().matmul(b.clone()));
             }
         }
     };
 }
 
-bench_broadcast_backend!(Flex, flex_broadcast, "Flex_Broadcast");
-bench_broadcast_backend!(NdArray, ndarray_broadcast, "NdArray_Broadcast");
+bench_broadcast_backend!(TestBackend, backend_broadcast, "backend_broadcast");

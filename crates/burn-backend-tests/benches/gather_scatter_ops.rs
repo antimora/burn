@@ -5,8 +5,10 @@
 //! cargo bench --bench gather_scatter_ops --features simd
 //! ```
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{IndexingUpdateOp, Int, Tensor, TensorData, backend::Backend};
 use divan::{AllocProfiler, Bencher};
 
@@ -52,21 +54,21 @@ macro_rules! bench_backend {
                 fn _256x256_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(256, 256);
                     let indices = make_indices_2d::<B>(256, 128, 256);
-                    bencher.bench(|| tensor.clone().gather(1, indices.clone()));
+                    bencher.bench_synced(|| tensor.clone().gather(1, indices.clone()));
                 }
 
                 #[divan::bench]
                 fn _1024x1024_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(1024, 1024);
                     let indices = make_indices_2d::<B>(1024, 512, 1024);
-                    bencher.bench(|| tensor.clone().gather(1, indices.clone()));
+                    bencher.bench_synced(|| tensor.clone().gather(1, indices.clone()));
                 }
 
                 #[divan::bench]
                 fn _256x256_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(256, 256);
                     let indices = make_indices_2d::<B>(128, 256, 256);
-                    bencher.bench(|| tensor.clone().gather(0, indices.clone()));
+                    bencher.bench_synced(|| tensor.clone().gather(0, indices.clone()));
                 }
             }
 
@@ -79,7 +81,7 @@ macro_rules! bench_backend {
                     let tensor = make_tensor_2d::<B>(256, 256);
                     let indices = make_indices_2d::<B>(256, 128, 256);
                     let values = make_tensor_2d::<B>(256, 128);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         tensor.clone().scatter(
                             1,
                             indices.clone(),
@@ -94,7 +96,7 @@ macro_rules! bench_backend {
                     let tensor = make_tensor_2d::<B>(1024, 1024);
                     let indices = make_indices_2d::<B>(1024, 512, 1024);
                     let values = make_tensor_2d::<B>(1024, 512);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         tensor.clone().scatter(
                             1,
                             indices.clone(),
@@ -113,21 +115,21 @@ macro_rules! bench_backend {
                 fn _256x256_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(256, 256);
                     let indices = make_indices_1d::<B>(128, 256);
-                    bencher.bench(|| tensor.clone().select(0, indices.clone()));
+                    bencher.bench_synced(|| tensor.clone().select(0, indices.clone()));
                 }
 
                 #[divan::bench]
                 fn _1024x1024_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(1024, 1024);
                     let indices = make_indices_1d::<B>(512, 1024);
-                    bencher.bench(|| tensor.clone().select(0, indices.clone()));
+                    bencher.bench_synced(|| tensor.clone().select(0, indices.clone()));
                 }
 
                 #[divan::bench]
                 fn _256x256_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d::<B>(256, 256);
                     let indices = make_indices_1d::<B>(128, 256);
-                    bencher.bench(|| tensor.clone().select(1, indices.clone()));
+                    bencher.bench_synced(|| tensor.clone().select(1, indices.clone()));
                 }
             }
 
@@ -140,7 +142,7 @@ macro_rules! bench_backend {
                     let tensor = make_tensor_2d::<B>(256, 256);
                     let indices = make_indices_1d::<B>(128, 256);
                     let values = make_tensor_2d::<B>(128, 256);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         tensor.clone().select_assign(
                             0,
                             indices.clone(),
@@ -155,7 +157,7 @@ macro_rules! bench_backend {
                     let tensor = make_tensor_2d::<B>(1024, 1024);
                     let indices = make_indices_1d::<B>(512, 1024);
                     let values = make_tensor_2d::<B>(512, 1024);
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         tensor.clone().select_assign(
                             0,
                             indices.clone(),
@@ -169,5 +171,4 @@ macro_rules! bench_backend {
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray<f32>, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");
