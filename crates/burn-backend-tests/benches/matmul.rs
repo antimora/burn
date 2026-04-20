@@ -189,23 +189,27 @@ macro_rules! bench_backend {
 bench_backend!(TestBackend, backend, "backend");
 
 // Integer matmul benchmarks
-fn make_int_matrix<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2, burn_tensor::Int> {
-    let data: Vec<i32> = (0..rows * cols).map(|i| (i % 1000) as i32 - 500).collect();
-    Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
+fn make_int_matrix<B: Backend>(rows: usize, cols: usize) -> Option<Tensor<B, 2, burn_tensor::Int>> {
+    common::try_setup(|| {
+        let data: Vec<i32> = (0..rows * cols).map(|i| (i % 1000) as i32 - 500).collect();
+        Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
+    })
 }
 
 fn make_int_batch_matrix<B: Backend>(
     batch: usize,
     rows: usize,
     cols: usize,
-) -> Tensor<B, 3, burn_tensor::Int> {
-    let data: Vec<i32> = (0..batch * rows * cols)
-        .map(|i| (i % 1000) as i32 - 500)
-        .collect();
-    Tensor::from_data(
-        TensorData::new(data, [batch, rows, cols]),
-        &Default::default(),
-    )
+) -> Option<Tensor<B, 3, burn_tensor::Int>> {
+    common::try_setup(|| {
+        let data: Vec<i32> = (0..batch * rows * cols)
+            .map(|i| (i % 1000) as i32 - 500)
+            .collect();
+        Tensor::from_data(
+            TensorData::new(data, [batch, rows, cols]),
+            &Default::default(),
+        )
+    })
 }
 
 macro_rules! bench_int_backend {
@@ -222,29 +226,29 @@ macro_rules! bench_int_backend {
 
                 #[divan::bench]
                 fn matmul_64x64(bencher: Bencher) {
-                    let a = make_int_matrix::<B>(64, 64);
-                    let b = make_int_matrix::<B>(64, 64);
+                    let Some(a) = make_int_matrix::<B>(64, 64) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_matrix::<B>(64, 64) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn matmul_128x128(bencher: Bencher) {
-                    let a = make_int_matrix::<B>(128, 128);
-                    let b = make_int_matrix::<B>(128, 128);
+                    let Some(a) = make_int_matrix::<B>(128, 128) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_matrix::<B>(128, 128) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn matmul_256x256(bencher: Bencher) {
-                    let a = make_int_matrix::<B>(256, 256);
-                    let b = make_int_matrix::<B>(256, 256);
+                    let Some(a) = make_int_matrix::<B>(256, 256) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_matrix::<B>(256, 256) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn matmul_512x512(bencher: Bencher) {
-                    let a = make_int_matrix::<B>(512, 512);
-                    let b = make_int_matrix::<B>(512, 512);
+                    let Some(a) = make_int_matrix::<B>(512, 512) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_matrix::<B>(512, 512) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }
@@ -255,15 +259,15 @@ macro_rules! bench_int_backend {
 
                 #[divan::bench]
                 fn batch8_64x64(bencher: Bencher) {
-                    let a = make_int_batch_matrix::<B>(8, 64, 64);
-                    let b = make_int_batch_matrix::<B>(8, 64, 64);
+                    let Some(a) = make_int_batch_matrix::<B>(8, 64, 64) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_batch_matrix::<B>(8, 64, 64) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn batch16_128x128(bencher: Bencher) {
-                    let a = make_int_batch_matrix::<B>(16, 128, 128);
-                    let b = make_int_batch_matrix::<B>(16, 128, 128);
+                    let Some(a) = make_int_batch_matrix::<B>(16, 128, 128) else { bencher.bench(|| ()); return; };
+                    let Some(b) = make_int_batch_matrix::<B>(16, 128, 128) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }

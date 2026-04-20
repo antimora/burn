@@ -37,14 +37,18 @@ fn make_f32_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2> {
     Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
 }
 
-fn make_int_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2, Int> {
-    let data: Vec<i32> = (0..rows * cols).map(|i| (i % 10) as i32 + 1).collect();
-    Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
+fn make_int_2d<B: Backend>(rows: usize, cols: usize) -> Option<Tensor<B, 2, Int>> {
+    common::try_setup(|| {
+        let data: Vec<i32> = (0..rows * cols).map(|i| (i % 10) as i32 + 1).collect();
+        Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
+    })
 }
 
-fn make_int_exp_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2, Int> {
-    let data: Vec<i32> = (0..rows * cols).map(|i| (i % 4) as i32 + 1).collect();
-    Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
+fn make_int_exp_2d<B: Backend>(rows: usize, cols: usize) -> Option<Tensor<B, 2, Int>> {
+    common::try_setup(|| {
+        let data: Vec<i32> = (0..rows * cols).map(|i| (i % 4) as i32 + 1).collect();
+        Tensor::from_data(TensorData::new(data, [rows, cols]), &Default::default())
+    })
 }
 
 fn make_bool_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2, Bool> {
@@ -195,13 +199,13 @@ macro_rules! bench_cat {
 
                 #[divan::bench]
                 fn _256x256(bencher: Bencher) {
-                    let t = make_int_2d::<B>(256, 256);
+                    let Some(t) = make_int_2d::<B>(256, 256) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| t.clone().max());
                 }
 
                 #[divan::bench]
                 fn _1024x1024(bencher: Bencher) {
-                    let t = make_int_2d::<B>(1024, 1024);
+                    let Some(t) = make_int_2d::<B>(1024, 1024) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| t.clone().max());
                 }
             }
@@ -212,15 +216,15 @@ macro_rules! bench_cat {
 
                 #[divan::bench]
                 fn _256x256(bencher: Bencher) {
-                    let base = make_int_2d::<B>(256, 256);
-                    let exp = make_int_exp_2d::<B>(256, 256);
+                    let Some(base) = make_int_2d::<B>(256, 256) else { bencher.bench(|| ()); return; };
+                    let Some(exp) = make_int_exp_2d::<B>(256, 256) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| base.clone().powi(exp.clone()));
                 }
 
                 #[divan::bench]
                 fn _1024x256(bencher: Bencher) {
-                    let base = make_int_2d::<B>(1024, 256);
-                    let exp = make_int_exp_2d::<B>(1024, 256);
+                    let Some(base) = make_int_2d::<B>(1024, 256) else { bencher.bench(|| ()); return; };
+                    let Some(exp) = make_int_exp_2d::<B>(1024, 256) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| base.clone().powi(exp.clone()));
                 }
             }

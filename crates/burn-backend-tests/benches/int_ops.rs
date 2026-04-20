@@ -23,11 +23,13 @@ fn main() {
     common::report_failures();
 }
 
-fn make_int_tensor<B: Backend>(shape: &[usize]) -> Tensor<B, 2, Int> {
-    let size: usize = shape.iter().product();
-    // Use values that fit in i8 (-128 to 127) so all casts work
-    let data: Vec<i32> = (0..size).map(|i| (i % 200) as i32 - 100).collect();
-    Tensor::from_data(TensorData::new(data, shape.to_vec()), &Default::default())
+fn make_int_tensor<B: Backend>(shape: &[usize]) -> Option<Tensor<B, 2, Int>> {
+    common::try_setup(|| {
+        let size: usize = shape.iter().product();
+        // Use values that fit in i8 (-128 to 127) so all casts work
+        let data: Vec<i32> = (0..size).map(|i| (i % 200) as i32 - 100).collect();
+        Tensor::from_data(TensorData::new(data, shape.to_vec()), &Default::default())
+    })
 }
 
 // =============================================================================
@@ -49,28 +51,28 @@ macro_rules! bench_cast_backend {
                 // Small tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_64x64(bencher: Bencher) {
-                    let t = make_int_tensor::<B>(&[64, 64]);
+                    let Some(t) = make_int_tensor::<B>(&[64, 64]) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| t.clone().cast(DType::I32));
                 }
 
                 // Medium tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_256x256(bencher: Bencher) {
-                    let t = make_int_tensor::<B>(&[256, 256]);
+                    let Some(t) = make_int_tensor::<B>(&[256, 256]) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| t.clone().cast(DType::I32));
                 }
 
                 // Large tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_1024x1024(bencher: Bencher) {
-                    let t = make_int_tensor::<B>(&[1024, 1024]);
+                    let Some(t) = make_int_tensor::<B>(&[1024, 1024]) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| t.clone().cast(DType::I32));
                 }
 
                 // Cast to smaller type (i8)
                 #[divan::bench]
                 fn cast_i64_to_i8_256x256(bencher: Bencher) {
-                    let t = make_int_tensor::<B>(&[256, 256]);
+                    let Some(t) = make_int_tensor::<B>(&[256, 256]) else { bencher.bench(|| ()); return; };
                     bencher.bench_synced(|| t.clone().cast(DType::I8));
                 }
             }
