@@ -460,8 +460,8 @@ Tensor {
 [[0.12345679, 0.12345679, 0.12345679],
  [0.12345679, 0.12345679, 0.12345679]],
   shape:  [2, 3],
-  device:  Cpu,
-  backend:  "ndarray",
+  device:  Flex,
+  backend:  "flex",
   kind:  "Float",
   dtype:  "f32",
 }
@@ -483,8 +483,8 @@ Tensor {
 [[0.12, 0.12, 0.12],
  [0.12, 0.12, 0.12]],
   shape:  [2, 3],
-  device:  Cpu,
-  backend:  "ndarray",
+  device:  Flex,
+  backend:  "flex",
   kind:  "Float",
   dtype:  "f32",
 }
@@ -526,7 +526,7 @@ Options:
 
   ```rust, ignore
   use burn::tensor::{check_closeness, Tensor};
-  type B = burn::backend::NdArray;
+  type B = burn::backend::Flex;
 
   let device = Default::default();
   let tensor1 = Tensor::<B, 1>::from_floats(
