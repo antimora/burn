@@ -16,7 +16,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Integer Operations Benchmarks: Flex vs NdArray");
+    println!("Integer Operations Benchmarks");
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();

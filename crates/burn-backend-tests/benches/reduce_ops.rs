@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for reduction operations.
+//! Benchmarks for reduction operations.
 //!
 //! Run with:
 //! ```bash
@@ -16,7 +16,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Comparing Flex vs NdArray backends for reduction ops");
+    println!("Reduction ops Benchmarks");
     println!();
     divan::main();
 }

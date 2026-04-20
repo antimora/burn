@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for slice operations.
+//! Benchmarks for slice operations.
 //!
 //! Run with:
 //! ```bash
@@ -18,7 +18,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Slice Operations Benchmarks: Flex vs NdArray");
+    println!("Slice Operations Benchmarks");
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();

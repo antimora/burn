@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for interpolation operations.
+//! Benchmarks for interpolation operations.
 //!
 //! Run with:
 //! ```bash
@@ -23,7 +23,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Interpolate Benchmarks: Flex vs NdArray");
+    println!("Interpolate Benchmarks");
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();

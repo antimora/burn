@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for transposed convolution operations.
+//! Benchmarks for transposed convolution operations.
 //!
 //! Run with:
 //! ```bash
@@ -19,7 +19,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Conv Transpose Benchmarks: Flex vs NdArray");
+    println!("Conv Transpose Benchmarks");
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();

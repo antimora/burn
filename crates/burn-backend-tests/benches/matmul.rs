@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for matrix multiplication.
+//! Benchmarks for matrix multiplication.
 //!
 //! Run with:
 //! ```bash
@@ -18,7 +18,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Matrix Multiplication Benchmarks: Flex vs NdArray");
+    println!("Matrix Multiplication Benchmarks");
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();

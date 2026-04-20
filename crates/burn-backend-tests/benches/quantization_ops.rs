@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for quantized tensor operations.
+//! Benchmarks for quantized tensor operations.
 //!
 //! Run with:
 //! ```bash
@@ -16,7 +16,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Comparing Flex vs NdArray backends (quantized ops)");
+    println!("Quantized ops Benchmarks");
     println!();
     divan::main();
 }

@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for unary operations.
+//! Benchmarks for unary operations.
 //!
 //! Run with:
 //! ```bash
@@ -16,7 +16,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Comparing Flex vs NdArray backends for unary ops");
+    println!("Unary ops Benchmarks");
     println!();
     divan::main();
 }

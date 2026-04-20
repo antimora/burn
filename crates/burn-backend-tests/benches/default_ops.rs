@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for default ops.
+//! Benchmarks for default ops.
 //!
 //! These ops previously used burn's default trait implementations (TensorData
 //! round-trips, slice_assign loops, etc.) and now have direct implementations.
@@ -19,7 +19,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Comparing Flex vs NdArray backends for default ops");
+    println!("Default ops Benchmarks");
     println!();
     divan::main();
 }

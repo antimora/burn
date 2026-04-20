@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for pooling operations.
+//! Benchmarks for pooling operations.
 //!
 //! Run with:
 //! ```bash
@@ -18,7 +18,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Pooling Benchmarks: Flex vs NdArray");
+    println!("Pooling Benchmarks");
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();

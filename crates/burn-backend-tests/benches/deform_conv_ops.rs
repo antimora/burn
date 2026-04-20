@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for deformable convolution.
+//! Benchmarks for deformable convolution.
 //!
 //! Run with:
 //! ```bash
@@ -18,7 +18,7 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Deformable Convolution Benchmarks: Flex vs NdArray");
+    println!("Deformable Convolution Benchmarks");
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();

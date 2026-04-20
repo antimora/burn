@@ -37,7 +37,7 @@ fn trait_layer_norm<B: Backend, const D: usize>(
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Normalization Benchmarks: Flex vs NdArray");
+    println!("Normalization Benchmarks");
     println!();
     divan::main();
 }
