@@ -40,6 +40,7 @@ fn main() {
     println!("Normalization Benchmarks");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 fn make_tensor_3d<B: Backend>(d0: usize, d1: usize, d2: usize) -> Tensor<B, 3> {

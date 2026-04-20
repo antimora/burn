@@ -20,6 +20,7 @@ fn main() {
     println!("Softmax Benchmarks: fused (via B::softmax) vs decomposed");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 fn make_tensor_3d<B: Backend, E: Element + From<f32>>(

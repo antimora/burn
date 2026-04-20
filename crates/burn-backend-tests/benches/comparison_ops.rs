@@ -19,6 +19,7 @@ fn main() {
     println!("Benchmarking comparison and broadcast operations");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 const SMALL: usize = 64 * 64; // 4K elements

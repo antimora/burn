@@ -19,6 +19,7 @@ fn main() {
     println!("Gather/scatter ops Benchmarks");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 fn make_tensor_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2> {

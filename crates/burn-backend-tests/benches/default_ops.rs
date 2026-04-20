@@ -22,6 +22,7 @@ fn main() {
     println!("Default ops Benchmarks");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 const SMALL: usize = 64 * 64;

@@ -4,6 +4,10 @@
 //! that pins the default float/int dtypes to `f32`/`i32` so backends that advertise a different
 //! default (e.g. bf16) don't silently convert bench inputs.
 
+use std::cell::Cell;
+use std::panic::{self, AssertUnwindSafe, Location};
+use std::sync::Mutex;
+
 use burn_tensor::backend::Backend;
 use ctor::ctor;
 
@@ -32,10 +36,67 @@ pub fn sync() {
     TestBackend::sync(&Default::default()).unwrap();
 }
 
-/// Extension trait adding a synced variant of `Bencher::bench`.
+// --- Panic-tolerant bench execution -----------------------------------------
+//
+// Some ops are not implemented on every backend (quantization on tch, deformable conv on metal,
+// etc.). Without handling, the first panic in a bench binary aborts the whole run. We pre-flight
+// each bench under `catch_unwind`; on panic we record the failure, skip the bench loop, and let
+// subsequent benches in the same binary continue. `report_failures` at the end of `main()`
+// prints a summary.
+
+thread_local! {
+    static SUPPRESS_PANIC_OUTPUT: Cell<bool> = const { Cell::new(false) };
+}
+
+struct BenchFailure {
+    location: String,
+    message: String,
+}
+
+static FAILURES: Mutex<Vec<BenchFailure>> = Mutex::new(Vec::new());
+
+#[ctor]
+fn install_panic_hook() {
+    // Chain onto the existing hook rather than replacing it so truly unexpected panics (outside
+    // `bench_synced`'s catch_unwind window) still print normally.
+    let default_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |info| {
+        if !SUPPRESS_PANIC_OUTPUT.with(|s| s.get()) {
+            default_hook(info);
+        }
+    }));
+}
+
+fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "(non-string panic payload)".to_string()
+    }
+}
+
+/// Print a summary of benches that panicked during this run, if any. Call from `main()` after
+/// `divan::main()`.
+pub fn report_failures() {
+    let failures = FAILURES.lock().unwrap();
+    if failures.is_empty() {
+        return;
+    }
+    eprintln!();
+    eprintln!("=== {} bench(es) skipped due to panic ===", failures.len());
+    for f in failures.iter() {
+        eprintln!("  [{}] {}", f.location, f.message);
+    }
+}
+
+/// Extension trait adding a synced, panic-tolerant variant of `Bencher::bench`.
 ///
 /// `bench_synced` runs the op then forces a device sync before returning, so the timed region
-/// covers actual execution on async backends.
+/// covers actual execution on async backends. If the op panics (typically "not implemented" on a
+/// backend that doesn't support it), the failure is recorded and the bench is replaced with a
+/// no-op so later benches in the same binary keep running.
 pub trait BencherExt<'a, 'b> {
     fn bench_synced<O, F>(self, benched: F)
     where
@@ -43,15 +104,36 @@ pub trait BencherExt<'a, 'b> {
 }
 
 impl<'a, 'b> BencherExt<'a, 'b> for divan::Bencher<'a, 'b> {
-    #[inline]
+    #[track_caller]
     fn bench_synced<O, F>(self, benched: F)
     where
         F: Fn() -> O + Sync,
     {
-        self.bench(move || {
+        let loc = Location::caller();
+
+        SUPPRESS_PANIC_OUTPUT.with(|s| s.set(true));
+        let result = panic::catch_unwind(AssertUnwindSafe(|| {
             let r = benched();
             sync();
-            r
-        });
+            drop(r);
+        }));
+        SUPPRESS_PANIC_OUTPUT.with(|s| s.set(false));
+
+        match result {
+            Ok(()) => {
+                self.bench(move || {
+                    let r = benched();
+                    sync();
+                    r
+                });
+            }
+            Err(payload) => {
+                FAILURES.lock().unwrap().push(BenchFailure {
+                    location: format!("{}:{}", loc.file(), loc.line()),
+                    message: panic_message(payload),
+                });
+                self.bench(|| ());
+            }
+        }
     }
 }

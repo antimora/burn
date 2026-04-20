@@ -22,6 +22,7 @@ fn main() {
     println!("rfft / irfft benchmarks");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 type B = TestBackend;

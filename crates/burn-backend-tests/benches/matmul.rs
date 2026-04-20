@@ -22,6 +22,7 @@ fn main() {
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 fn make_matrix<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2> {

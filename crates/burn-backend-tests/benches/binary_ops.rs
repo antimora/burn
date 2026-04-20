@@ -19,6 +19,7 @@ fn main() {
     println!("Benchmarks");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 // Tensor sizes for benchmarking

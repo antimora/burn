@@ -19,6 +19,7 @@ fn main() {
     println!("Reduction ops Benchmarks");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 fn make_tensor_1d<B: Backend>(size: usize) -> Tensor<B, 1> {

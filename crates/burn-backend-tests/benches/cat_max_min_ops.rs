@@ -20,6 +20,7 @@ fn main() {
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 // === Helpers ===

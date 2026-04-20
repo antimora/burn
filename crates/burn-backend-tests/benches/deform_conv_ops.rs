@@ -22,6 +22,7 @@ fn main() {
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 /// Create input tensor [batch, channels, height, width]

@@ -19,6 +19,7 @@ fn main() {
     println!("Unary ops Benchmarks");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 const SMALL: usize = 64 * 64; // 4K elements

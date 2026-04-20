@@ -19,6 +19,7 @@ fn main() {
     println!("Cross and unfold ops Benchmarks");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 // Cross product requires 3 elements along the specified dimension
