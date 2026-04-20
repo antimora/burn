@@ -93,19 +93,28 @@ macro_rules! bench_backend {
 
                 #[divan::bench]
                 fn small(bencher: Bencher) {
-                    let Some(qt) = make_qtensor::<B>(SMALL) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qtensor::<B>(SMALL) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().dequantize());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
-                    let Some(qt) = make_qtensor::<B>(MEDIUM) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qtensor::<B>(MEDIUM) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().dequantize());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
-                    let Some(qt) = make_qtensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qtensor::<B>(LARGE) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().dequantize());
                 }
             }
@@ -116,22 +125,40 @@ macro_rules! bench_backend {
 
                 #[divan::bench]
                 fn small(bencher: Bencher) {
-                    let Some(a) = make_qtensor::<B>(SMALL) else { bencher.bench(|| ()); return; };
-                    let Some(b) = make_qtensor::<B>(SMALL) else { bencher.bench(|| ()); return; };
+                    let Some(a) = make_qtensor::<B>(SMALL) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    let Some(b) = make_qtensor::<B>(SMALL) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| a.clone() + b.clone());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
-                    let Some(a) = make_qtensor::<B>(MEDIUM) else { bencher.bench(|| ()); return; };
-                    let Some(b) = make_qtensor::<B>(MEDIUM) else { bencher.bench(|| ()); return; };
+                    let Some(a) = make_qtensor::<B>(MEDIUM) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    let Some(b) = make_qtensor::<B>(MEDIUM) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| a.clone() + b.clone());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
-                    let Some(a) = make_qtensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
-                    let Some(b) = make_qtensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
+                    let Some(a) = make_qtensor::<B>(LARGE) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    let Some(b) = make_qtensor::<B>(LARGE) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| a.clone() + b.clone());
                 }
             }
@@ -142,22 +169,40 @@ macro_rules! bench_backend {
 
                 #[divan::bench]
                 fn mat_64x64(bencher: Bencher) {
-                    let Some(a) = make_qmatrix::<B>(64, 64) else { bencher.bench(|| ()); return; };
-                    let Some(b) = make_qmatrix::<B>(64, 64) else { bencher.bench(|| ()); return; };
+                    let Some(a) = make_qmatrix::<B>(64, 64) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    let Some(b) = make_qmatrix::<B>(64, 64) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn mat_256x256(bencher: Bencher) {
-                    let Some(a) = make_qmatrix::<B>(256, 256) else { bencher.bench(|| ()); return; };
-                    let Some(b) = make_qmatrix::<B>(256, 256) else { bencher.bench(|| ()); return; };
+                    let Some(a) = make_qmatrix::<B>(256, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    let Some(b) = make_qmatrix::<B>(256, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
 
                 #[divan::bench]
                 fn mat_512x512(bencher: Bencher) {
-                    let Some(a) = make_qmatrix::<B>(512, 512) else { bencher.bench(|| ()); return; };
-                    let Some(b) = make_qmatrix::<B>(512, 512) else { bencher.bench(|| ()); return; };
+                    let Some(a) = make_qmatrix::<B>(512, 512) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    let Some(b) = make_qmatrix::<B>(512, 512) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| a.clone().matmul(b.clone()));
                 }
             }
@@ -168,19 +213,28 @@ macro_rules! bench_backend {
 
                 #[divan::bench]
                 fn small(bencher: Bencher) {
-                    let Some(qt) = make_qtensor::<B>(SMALL) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qtensor::<B>(SMALL) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().sum());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
-                    let Some(qt) = make_qtensor::<B>(MEDIUM) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qtensor::<B>(MEDIUM) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().sum());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
-                    let Some(qt) = make_qtensor::<B>(LARGE) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qtensor::<B>(LARGE) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().sum());
                 }
             }
@@ -191,13 +245,19 @@ macro_rules! bench_backend {
 
                 #[divan::bench]
                 fn medium_256x256(bencher: Bencher) {
-                    let Some(qt) = make_qmatrix::<B>(256, 256) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qmatrix::<B>(256, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().permute([1, 0]));
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
-                    let Some(qt) = make_qmatrix::<B>(1024, 1024) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qmatrix::<B>(1024, 1024) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().permute([1, 0]));
                 }
             }
@@ -208,13 +268,19 @@ macro_rules! bench_backend {
 
                 #[divan::bench]
                 fn medium_256x256(bencher: Bencher) {
-                    let Some(qt) = make_qmatrix::<B>(256, 256) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qmatrix::<B>(256, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().argmax(1));
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
-                    let Some(qt) = make_qmatrix::<B>(1024, 1024) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qmatrix::<B>(1024, 1024) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().argmax(1));
                 }
             }
@@ -225,13 +291,19 @@ macro_rules! bench_backend {
 
                 #[divan::bench]
                 fn medium_256x256(bencher: Bencher) {
-                    let Some(qt) = make_qmatrix::<B>(256, 256) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qmatrix::<B>(256, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().argmin(1));
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
-                    let Some(qt) = make_qmatrix::<B>(1024, 1024) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qmatrix::<B>(1024, 1024) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| qt.clone().argmin(1));
                 }
             }
@@ -251,14 +323,20 @@ macro_rules! bench_backend {
 
                 #[divan::bench]
                 fn medium_256x256(bencher: Bencher) {
-                    let Some(qt) = make_qmatrix::<B>(256, 256) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qmatrix::<B>(256, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     let indices = make_indices::<B>(256, 256);
                     bencher.bench_synced(|| qt.clone().gather(1, indices.clone()));
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
-                    let Some(qt) = make_qmatrix::<B>(1024, 1024) else { bencher.bench(|| ()); return; };
+                    let Some(qt) = make_qmatrix::<B>(1024, 1024) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     let indices = make_indices::<B>(1024, 1024);
                     bencher.bench_synced(|| qt.clone().gather(1, indices.clone()));
                 }

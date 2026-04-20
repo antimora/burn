@@ -51,28 +51,40 @@ macro_rules! bench_cast_backend {
                 // Small tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_64x64(bencher: Bencher) {
-                    let Some(t) = make_int_tensor::<B>(&[64, 64]) else { bencher.bench(|| ()); return; };
+                    let Some(t) = make_int_tensor::<B>(&[64, 64]) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| t.clone().cast(DType::I32));
                 }
 
                 // Medium tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_256x256(bencher: Bencher) {
-                    let Some(t) = make_int_tensor::<B>(&[256, 256]) else { bencher.bench(|| ()); return; };
+                    let Some(t) = make_int_tensor::<B>(&[256, 256]) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| t.clone().cast(DType::I32));
                 }
 
                 // Large tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_1024x1024(bencher: Bencher) {
-                    let Some(t) = make_int_tensor::<B>(&[1024, 1024]) else { bencher.bench(|| ()); return; };
+                    let Some(t) = make_int_tensor::<B>(&[1024, 1024]) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| t.clone().cast(DType::I32));
                 }
 
                 // Cast to smaller type (i8)
                 #[divan::bench]
                 fn cast_i64_to_i8_256x256(bencher: Bencher) {
-                    let Some(t) = make_int_tensor::<B>(&[256, 256]) else { bencher.bench(|| ()); return; };
+                    let Some(t) = make_int_tensor::<B>(&[256, 256]) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| t.clone().cast(DType::I8));
                 }
             }

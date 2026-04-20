@@ -232,14 +232,20 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn vocab30k_dim512_batch8_seq128(bencher: Bencher) {
                     let weights = make_weights::<B>(30000, 512);
-                    let Some(indices) = make_indices::<B>(8, 128, 30000) else { bencher.bench(|| ()); return; };
+                    let Some(indices) = make_indices::<B>(8, 128, 30000) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| module::embedding(weights.clone(), indices.clone()));
                 }
 
                 #[divan::bench]
                 fn vocab50k_dim768_batch4_seq256(bencher: Bencher) {
                     let weights = make_weights::<B>(50000, 768);
-                    let Some(indices) = make_indices::<B>(4, 256, 50000) else { bencher.bench(|| ()); return; };
+                    let Some(indices) = make_indices::<B>(4, 256, 50000) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| module::embedding(weights.clone(), indices.clone()));
                 }
             }

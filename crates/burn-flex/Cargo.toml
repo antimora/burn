@@ -57,21 +57,21 @@ num-traits = { workspace = true }
 gemm = { workspace = true, features = ["f16"] }
 
 # SIMD
-aligned-vec = { version = "0.6", default-features = false, optional = true }
+aligned-vec = { workspace = true, optional = true }
 macerator = { workspace = true, optional = true }
 
 # Parallel
 rayon = { workspace = true, optional = true }
 
 # no_std targets without atomic CAS (enabled via `critical-section` feature)
-once_cell = { version = "1", default-features = false, optional = true }
+once_cell = { workspace = true, optional = true }
 portable-atomic = { workspace = true, optional = true }
 portable-atomic-util = { workspace = true, optional = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
 burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3" }
-realfft = "3"
+realfft = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["default"]

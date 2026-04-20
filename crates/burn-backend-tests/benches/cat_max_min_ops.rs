@@ -58,8 +58,8 @@ fn make_bool_2d<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2, Bool> {
 
 fn make_indices_1d<B: Backend>(size: usize, max_idx: usize) -> Option<Tensor<B, 1, Int>> {
     common::try_setup(|| {
-            let data: Vec<i32> = (0..size).map(|i| (i % max_idx) as i32).collect();
-            Tensor::from_data(TensorData::new(data, [size]), &Default::default())
+        let data: Vec<i32> = (0..size).map(|i| (i % max_idx) as i32).collect();
+        Tensor::from_data(TensorData::new(data, [size]), &Default::default())
     })
 }
 
@@ -199,13 +199,19 @@ macro_rules! bench_cat {
 
                 #[divan::bench]
                 fn _256x256(bencher: Bencher) {
-                    let Some(t) = make_int_2d::<B>(256, 256) else { bencher.bench(|| ()); return; };
+                    let Some(t) = make_int_2d::<B>(256, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| t.clone().max());
                 }
 
                 #[divan::bench]
                 fn _1024x1024(bencher: Bencher) {
-                    let Some(t) = make_int_2d::<B>(1024, 1024) else { bencher.bench(|| ()); return; };
+                    let Some(t) = make_int_2d::<B>(1024, 1024) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| t.clone().max());
                 }
             }
@@ -216,15 +222,27 @@ macro_rules! bench_cat {
 
                 #[divan::bench]
                 fn _256x256(bencher: Bencher) {
-                    let Some(base) = make_int_2d::<B>(256, 256) else { bencher.bench(|| ()); return; };
-                    let Some(exp) = make_int_exp_2d::<B>(256, 256) else { bencher.bench(|| ()); return; };
+                    let Some(base) = make_int_2d::<B>(256, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    let Some(exp) = make_int_exp_2d::<B>(256, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| base.clone().powi(exp.clone()));
                 }
 
                 #[divan::bench]
                 fn _1024x256(bencher: Bencher) {
-                    let Some(base) = make_int_2d::<B>(1024, 256) else { bencher.bench(|| ()); return; };
-                    let Some(exp) = make_int_exp_2d::<B>(1024, 256) else { bencher.bench(|| ()); return; };
+                    let Some(base) = make_int_2d::<B>(1024, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    let Some(exp) = make_int_exp_2d::<B>(1024, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| base.clone().powi(exp.clone()));
                 }
             }
@@ -236,14 +254,20 @@ macro_rules! bench_cat {
                 #[divan::bench]
                 fn _256x256_128idx(bencher: Bencher) {
                     let t = make_bool_2d::<B>(256, 256);
-                    let Some(idx) = make_indices_1d::<B>(128, 256) else { bencher.bench(|| ()); return; };
+                    let Some(idx) = make_indices_1d::<B>(128, 256) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| t.clone().select(0, idx.clone()));
                 }
 
                 #[divan::bench]
                 fn _1024x256_512idx(bencher: Bencher) {
                     let t = make_bool_2d::<B>(1024, 256);
-                    let Some(idx) = make_indices_1d::<B>(512, 1024) else { bencher.bench(|| ()); return; };
+                    let Some(idx) = make_indices_1d::<B>(512, 1024) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
                     bencher.bench_synced(|| t.clone().select(0, idx.clone()));
                 }
             }
