@@ -36,10 +36,10 @@ pub fn launch<B: Backend>(device: B::Device) {
 mod flex {
     use burn::backend::Flex;
 
-    use crate::{ElemType, launch};
+    use crate::launch;
 
     pub fn run() {
-        launch::<Flex<ElemType, i32>>(Default::default());
+        launch::<Flex>(Default::default());
     }
 }
 

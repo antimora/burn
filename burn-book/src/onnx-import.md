@@ -131,7 +131,7 @@ Now you can use the imported model in your code:
 
 ```rust, ignore
 use burn::tensor;
-use burn_flex::{Flex, FlexDevice};
+use burn::backend::{Flex, flex::FlexDevice};
 use model::my_model::Model;
 
 fn main() {

@@ -29,11 +29,11 @@ pub fn launch<B: AutodiffBackend>(device: B::Device) {
 
 #[cfg(feature = "flex")]
 mod flex {
-    use crate::{ElemType, launch};
+    use crate::launch;
     use burn::backend::{Autodiff, Flex};
 
     pub fn run() {
-        launch::<Autodiff<Flex<ElemType, i32>>>(Default::default());
+        launch::<Autodiff<Flex>>(Default::default());
     }
 }
 

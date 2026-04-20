@@ -182,13 +182,13 @@ mod rocm {
 #[cfg(feature = "flex")]
 mod flex {
     use super::*;
-    use crate::{ElemType, launch};
+    use crate::launch;
     use burn::backend::{Autodiff, Flex, autodiff::checkpoint::strategy::BalancedCheckpointing};
 
     pub fn run() {
-        launch::<Autodiff<Flex<ElemType, i32>, BalancedCheckpointing>>(
-            ExecutionStrategy::SingleDevice(Default::default()),
-        );
+        launch::<Autodiff<Flex, BalancedCheckpointing>>(ExecutionStrategy::SingleDevice(
+            Default::default(),
+        ));
     }
 }
 
