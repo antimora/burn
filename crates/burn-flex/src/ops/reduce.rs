@@ -1717,7 +1717,12 @@ where
 
 /// Scalar single-pass f32 last-dim argmax/argmin (indices only).
 /// Uses direct pointer access and simple comparisons instead of the generic closure path.
-fn extremum_indices_f32_last_scalar<F>(tensor: &FlexTensor, dim: usize, is_better: F) -> FlexTensor
+#[cfg_attr(test, allow(dead_code))]
+pub(crate) fn extremum_indices_f32_last_scalar<F>(
+    tensor: &FlexTensor,
+    dim: usize,
+    is_better: F,
+) -> FlexTensor
 where
     F: Fn(f32, f32) -> bool + Send + Sync,
 {
@@ -1734,20 +1739,20 @@ where
     let find_row = |outer: usize| -> isize {
         let row_start = start + outer * dim_size;
         let row = &data[row_start..row_start + dim_size];
+        // Single left-to-right scan: first NaN wins, otherwise track the
+        // extremum. Starting `best = row[0]` means the i=0 `is_better`
+        // branch is a no-op (strict comparisons are false on equal
+        // operands), so we don't need a separate row[0] check.
         let mut best = row[0];
         let mut best_idx: isize = 0;
-        for (i, &v) in row[1..].iter().enumerate() {
+        for (i, &v) in row.iter().enumerate() {
             if v.is_nan() {
-                return (i + 1) as isize;
+                return i as isize;
             }
             if is_better(v, best) {
                 best = v;
-                best_idx = (i + 1) as isize;
+                best_idx = i as isize;
             }
-        }
-        // Check first element for NaN (skipped in loop)
-        if row[0].is_nan() {
-            return 0;
         }
         best_idx
     };
@@ -1770,7 +1775,8 @@ where
 }
 
 /// Scalar single-pass f32 last-dim extremum with indices (values + indices).
-fn extremum_with_indices_f32_last_scalar<F>(
+#[cfg_attr(test, allow(dead_code))]
+pub(crate) fn extremum_with_indices_f32_last_scalar<F>(
     tensor: &FlexTensor,
     dim: usize,
     is_better: F,
@@ -1793,17 +1799,14 @@ where
         let row = &data[row_start..row_start + dim_size];
         let mut best = row[0];
         let mut best_idx: isize = 0;
-        for (i, &v) in row[1..].iter().enumerate() {
+        for (i, &v) in row.iter().enumerate() {
             if v.is_nan() {
-                return (f32::NAN, (i + 1) as isize);
+                return (f32::NAN, i as isize);
             }
             if is_better(v, best) {
                 best = v;
-                best_idx = (i + 1) as isize;
+                best_idx = i as isize;
             }
-        }
-        if row[0].is_nan() {
-            return (f32::NAN, 0);
         }
         (best, best_idx)
     };
@@ -2530,5 +2533,138 @@ mod tests {
         let idxs: Vec<isize> = bytemuck::cast_slice(&indices.into_data().bytes).to_vec();
         assert_eq!(vals, vec![10, 8]);
         assert_eq!(idxs, vec![1, 1]);
+    }
+
+    // Bug reproducers: f32 scalar last-dim argmax/argmin report the wrong
+    // NaN index when row[0] is NaN AND another NaN appears later in the row.
+    // The loop scans row[1..] first, returns on the later NaN, and only
+    // falls through to the post-loop row[0] check when row[1..] has no NaN.
+    // Convention across flex paths (SIMD f32, non-last-dim f32, f64) is
+    // "index of the first NaN". The scalar last-dim f32 path diverges.
+    //
+    // The scalar path is only reachable with `--no-default-features` (no
+    // `simd`), so the test module tests it directly through the pub(crate)
+    // entry point to catch the bug regardless of feature flags.
+
+    #[test]
+    fn test_argmax_f32_scalar_path_first_nan_multiple_nans() {
+        use super::extremum_indices_f32_last_scalar;
+        // Row starts with NaN, with a second NaN later. Expected argmax
+        // index is 0 (first NaN); the scalar path currently returns 1.
+        let tensor = FlexTensor::from_data(TensorData::new(
+            vec![f32::NAN, f32::NAN, 3.0f32],
+            [1, 3],
+        ));
+        let result = extremum_indices_f32_last_scalar(&tensor, 1, |a, b| a > b);
+        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        assert_eq!(
+            idxs,
+            vec![0],
+            "argmax scalar path: expected index 0 (first NaN), got {:?}",
+            idxs
+        );
+    }
+
+    #[test]
+    fn test_argmin_f32_scalar_path_first_nan_multiple_nans() {
+        use super::extremum_indices_f32_last_scalar;
+        let tensor = FlexTensor::from_data(TensorData::new(
+            vec![f32::NAN, f32::NAN, 3.0f32],
+            [1, 3],
+        ));
+        let result = extremum_indices_f32_last_scalar(&tensor, 1, |a, b| a < b);
+        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        assert_eq!(
+            idxs,
+            vec![0],
+            "argmin scalar path: expected index 0 (first NaN), got {:?}",
+            idxs
+        );
+    }
+
+    #[test]
+    fn test_argmax_f32_scalar_path_all_nan() {
+        use super::extremum_indices_f32_last_scalar;
+        // All-NaN row. Expected argmax index is 0; scalar path returns 1.
+        let tensor = FlexTensor::from_data(TensorData::new(
+            vec![f32::NAN, f32::NAN, f32::NAN],
+            [1, 3],
+        ));
+        let result = extremum_indices_f32_last_scalar(&tensor, 1, |a, b| a > b);
+        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        assert_eq!(
+            idxs,
+            vec![0],
+            "argmax scalar path on all-NaN row: expected 0, got {:?}",
+            idxs
+        );
+    }
+
+    #[test]
+    fn test_argmax_with_values_f32_scalar_path_first_nan_multiple_nans() {
+        use super::extremum_with_indices_f32_last_scalar;
+        // Values-and-indices variant has the same bug.
+        let tensor = FlexTensor::from_data(TensorData::new(
+            vec![f32::NAN, f32::NAN, 3.0f32],
+            [1, 3],
+        ));
+        let (_, indices) = extremum_with_indices_f32_last_scalar(&tensor, 1, |a, b| a > b);
+        let idxs: Vec<isize> = bytemuck::cast_slice(&indices.into_data().bytes).to_vec();
+        assert_eq!(
+            idxs,
+            vec![0],
+            "max_dim_with_indices scalar path: expected index 0 (first NaN), got {:?}",
+            idxs
+        );
+    }
+
+    // Cross-path consistency: the public `argmax` API must return the
+    // same index regardless of which internal kernel fires. Row length
+    // gates scalar vs SIMD (`EXTREMUM_SIMD_ROW_THRESHOLD = 512`), and
+    // the two kernels disagree for `[NaN, NaN, ...]`: SIMD returns 0
+    // ("first NaN"); scalar returns 1. A short 3-element row hits the
+    // scalar path even with the default `simd` feature, so this test
+    // fails in the stock build.
+    #[test]
+    fn test_argmax_cross_path_consistency_multiple_nans() {
+        use super::argmax;
+        let tensor = FlexTensor::from_data(TensorData::new(
+            vec![f32::NAN, f32::NAN, 3.0f32],
+            [1, 3],
+        ));
+        let result = argmax(tensor, 1);
+        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        assert_eq!(
+            idxs,
+            vec![0],
+            "argmax cross-path (row_len=3, scalar path): expected index 0, got {:?}",
+            idxs
+        );
+    }
+
+    // Paired test at a row length above `EXTREMUM_SIMD_ROW_THRESHOLD`
+    // (600 >= 512) to exercise the SIMD path. The SIMD kernel scans
+    // left-to-right for the first NaN-or-match, so leading NaNs should
+    // yield index 0. A divergent result vs the scalar test above means
+    // the two kernels still disagree on NaN index ordering.
+    #[cfg(feature = "simd")]
+    #[test]
+    fn test_argmax_simd_path_leading_nan_large_row() {
+        use super::argmax;
+        let mut row = alloc::vec![1.0f32; 600];
+        row[0] = f32::NAN;
+        row[1] = f32::NAN;
+        // Place a finite max after the leading NaNs to force a non-NaN
+        // SIMD reduction result, exercising the `v == ext` branch.
+        row[300] = 5.0;
+        let tensor = FlexTensor::from_data(TensorData::new(row, [1, 600]));
+        let result = argmax(tensor, 1);
+        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
+        assert_eq!(
+            idxs,
+            vec![0],
+            "argmax SIMD path with leading NaN: expected 0, got {:?}",
+            idxs
+        );
     }
 }
