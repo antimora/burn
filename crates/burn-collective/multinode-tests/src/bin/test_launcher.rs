@@ -102,8 +102,7 @@ async fn main() {
         for test in all_reduce_tests.clone() {
             let test_name = test.to_string();
 
-            let time =
-                test_all_reduce_centralized_no_collective::<Flex>(&topology, test.clone());
+            let time = test_all_reduce_centralized_no_collective::<Flex>(&topology, test.clone());
             println!(
                 "{test_name}: Benchmark (no collective, centralized, single-threaded): {} secs",
                 time.as_secs_f32()
