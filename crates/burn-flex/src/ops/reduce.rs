@@ -2536,10 +2536,8 @@ mod tests {
     // under the `flex` feature gate (see issue #4814).
     #[test]
     fn test_argmax_scalar_and_simd_paths_agree_on_leading_nan() {
-        let short = FlexTensor::from_data(TensorData::new(
-            vec![f32::NAN, f32::NAN, f32::NAN],
-            [1, 3],
-        ));
+        let short =
+            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, f32::NAN], [1, 3]));
         let short_idxs: Vec<isize> =
             bytemuck::cast_slice(&super::argmax(short, 1).into_data().bytes).to_vec();
 
