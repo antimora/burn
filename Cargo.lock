@@ -1266,7 +1266,6 @@ dependencies = [
  "burn-flex",
  "burn-fusion",
  "burn-ir",
- "burn-ndarray",
  "burn-std",
  "burn-store",
  "burn-tch",
