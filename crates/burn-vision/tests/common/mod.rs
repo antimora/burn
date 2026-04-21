@@ -11,6 +11,16 @@ use burn_tensor::{Bool, Int};
 ))]
 pub type TestBackend = burn_flex::Flex;
 
+// Fallback for `--no-default-features --features ndarray` configurations:
+// only kicks in when neither flex nor a GPU test backend is selected.
+#[cfg(all(
+    feature = "ndarray",
+    not(feature = "flex"),
+    not(feature = "test-cpu"),
+    not(any(feature = "test-wgpu", feature = "test-cuda"))
+))]
+pub type TestBackend = burn_ndarray::NdArray<f32, i32>;
+
 #[cfg(all(test, feature = "test-wgpu"))]
 pub type TestBackend = burn_wgpu::Wgpu;
 
