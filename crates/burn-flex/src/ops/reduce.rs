@@ -2528,76 +2528,12 @@ mod tests {
         assert_eq!(idxs, vec![1, 1]);
     }
 
-    // Regression tests for the f32 last-dim scalar kernel, which used
-    // to scan row[1..] with an early-return on NaN and check row[0] only
-    // in a post-loop fallback. With both row[0] and a later element NaN,
-    // the loop fired first and returned the later index. The fix folds
-    // both into a single left-to-right scan. The SIMD kernel (rows >=
-    // EXTREMUM_SIMD_ROW_THRESHOLD) was already correct; below the
-    // threshold the scalar path runs even in default builds.
-    //
-    // Convention across all flex kernels: argmax/argmin of a row
-    // containing NaN returns the index of the *first* NaN.
-
-    #[test]
-    fn test_argmax_f32_scalar_first_nan_wins() {
-        // [NaN, NaN, 3.0] -> argmax = 0 (first NaN, not the later one).
-        let tensor =
-            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, 3.0f32], [1, 3]));
-        let result = super::argmax(tensor, 1);
-        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
-        assert_eq!(idxs, vec![0]);
-    }
-
-    #[test]
-    fn test_argmin_f32_scalar_first_nan_wins() {
-        let tensor =
-            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, 3.0f32], [1, 3]));
-        let result = super::argmin(tensor, 1);
-        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
-        assert_eq!(idxs, vec![0]);
-    }
-
-    #[test]
-    fn test_argmax_f32_all_nan_row() {
-        let tensor =
-            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, f32::NAN], [1, 3]));
-        let result = super::argmax(tensor, 1);
-        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
-        assert_eq!(idxs, vec![0]);
-    }
-
-    // max_dim_with_indices has a separate scalar kernel
-    // (`extremum_with_indices_f32_last_scalar`) with the same structure;
-    // exercise it via the public API.
-    #[test]
-    fn test_max_dim_with_indices_f32_first_nan_wins() {
-        use burn_backend::IntDType;
-        let tensor =
-            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, 3.0f32], [1, 3]));
-        let (_, indices) = Flex::float_max_dim_with_indices(tensor, 1, IntDType::I64);
-        let idxs: Vec<i64> = indices.into_data().to_vec().unwrap();
-        assert_eq!(idxs, vec![0]);
-    }
-
-    // Guards the value-only scalar kernel (`extremum_f32_last_scalar`),
-    // which shares the same structural pattern. Value-only returns NaN
-    // on any NaN, so the observable result is unchanged today, but any
-    // future refactor toward position-aware returns must preserve
-    // "first-NaN" behavior.
-    #[test]
-    fn test_max_dim_f32_nan_propagates() {
-        let tensor =
-            FlexTensor::from_data(TensorData::new(vec![1.0f32, f32::NAN, 3.0], [1, 3]));
-        let result = Flex::float_max_dim(tensor, 1);
-        let vals: Vec<f32> = result.into_data().to_vec().unwrap();
-        assert!(vals[0].is_nan());
-    }
-
-    // Cross-path consistency: the public `argmax` API routes short rows
-    // to the scalar kernel and long rows (>= EXTREMUM_SIMD_ROW_THRESHOLD)
-    // to the SIMD kernel. Both must agree on "first NaN wins" even though
-    // they're structurally different.
+    // Cross-path consistency: `argmax`/`argmin` route short rows to the
+    // scalar kernel and rows of length >= EXTREMUM_SIMD_ROW_THRESHOLD to
+    // the SIMD kernel. Both kernels must agree on "first NaN wins".
+    // This is a flex-internal dispatch concern; the behavioral NaN
+    // propagation contract itself is exercised in burn-backend-tests
+    // under the `flex` feature gate (see issue #4814).
     #[test]
     fn test_argmax_scalar_and_simd_paths_agree_on_leading_nan() {
         let short = FlexTensor::from_data(TensorData::new(
@@ -2617,59 +2553,5 @@ mod tests {
 
         assert_eq!(short_idxs, vec![0], "scalar path");
         assert_eq!(long_idxs, vec![0], "SIMD path");
-    }
-
-    // Non-last-dim argmax routes through `extremum_dim_with_indices` with
-    // a NaN-aware closure - structurally different from the scalar/SIMD
-    // last-dim kernels. Guards against a future refactor pulling it into
-    // a shared (possibly buggy) scalar path.
-    #[test]
-    fn test_argmax_f32_leading_nan_non_last_dim() {
-        // Column 0: [NaN, NaN, 3.0] -> argmax along dim 0 = 0.
-        // Column 1: [1.0, 2.0, 4.0] -> argmax along dim 0 = 2.
-        let tensor = FlexTensor::from_data(TensorData::new(
-            vec![f32::NAN, 1.0, f32::NAN, 2.0, 3.0, 4.0],
-            [3, 2],
-        ));
-        let result = super::argmax(tensor, 0);
-        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
-        assert_eq!(idxs, vec![0, 2]);
-    }
-
-    // f64 argmax runs through `extremum_dim_with_indices` (no last-dim
-    // scalar fast path for f64). Guard the same "first NaN wins"
-    // convention here so the flex-wide contract is locked in.
-    #[test]
-    fn test_argmax_f64_leading_nan_wins() {
-        let tensor =
-            FlexTensor::from_data(TensorData::new(vec![f64::NAN, f64::NAN, 3.0], [1, 3]));
-        let result = super::argmax(tensor, 1);
-        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
-        assert_eq!(idxs, vec![0]);
-    }
-
-    // f16 / bf16 argmax route through `extremum_dim_with_indices_half`,
-    // casting to f32 for comparison. Cast preserves NaN payloads; ensure
-    // the convention holds.
-    #[test]
-    fn test_argmax_f16_leading_nan_wins() {
-        let tensor = FlexTensor::from_data(TensorData::new(
-            vec![f16::NAN, f16::NAN, f16::from_f32(3.0)],
-            [1, 3],
-        ));
-        let result = super::argmax(tensor, 1);
-        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
-        assert_eq!(idxs, vec![0]);
-    }
-
-    #[test]
-    fn test_argmax_bf16_leading_nan_wins() {
-        let tensor = FlexTensor::from_data(TensorData::new(
-            vec![bf16::NAN, bf16::NAN, bf16::from_f32(3.0)],
-            [1, 3],
-        ));
-        let result = super::argmax(tensor, 1);
-        let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
-        assert_eq!(idxs, vec![0]);
     }
 }
