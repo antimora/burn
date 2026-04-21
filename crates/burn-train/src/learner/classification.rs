@@ -4,7 +4,7 @@ use crate::metric::{
 };
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor, Transaction};
-use burn_ndarray::NdArray;
+use burn_flex::Flex;
 
 /// Simple classification output adapted for multiple metrics.
 ///
@@ -30,7 +30,7 @@ pub struct ClassificationOutput<B: Backend> {
 }
 
 impl<B: Backend> ItemLazy for ClassificationOutput<B> {
-    type ItemSync = ClassificationOutput<NdArray>;
+    type ItemSync = ClassificationOutput<Flex>;
 
     fn sync(self) -> Self::ItemSync {
         let [output, loss, targets] = Transaction::default()
@@ -119,7 +119,7 @@ pub struct MultiLabelClassificationOutput<B: Backend> {
 }
 
 impl<B: Backend> ItemLazy for MultiLabelClassificationOutput<B> {
-    type ItemSync = MultiLabelClassificationOutput<NdArray>;
+    type ItemSync = MultiLabelClassificationOutput<Flex>;
 
     fn sync(self) -> Self::ItemSync {
         let [output, loss, targets] = Transaction::default()

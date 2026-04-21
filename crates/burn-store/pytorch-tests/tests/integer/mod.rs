@@ -28,7 +28,6 @@ impl<B: Backend> Net<B> {
 #[cfg(test)]
 mod tests {
     use crate::backend::TestBackend;
-    use burn::tensor::TensorData;
     use burn_store::{ModuleSnapshot, PytorchStore};
 
     use super::*;
@@ -40,10 +39,10 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected =
-            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([1, 2, 3]), &device);
-
-        assert_eq!(output.to_data(), expected.to_data());
+        // Compare values without assuming a specific int dtype: .pt files
+        // store i64, but the backend's native IntElem may be smaller.
+        let values = output.to_data().iter::<i64>().collect::<Vec<_>>();
+        assert_eq!(values, vec![1i64, 2, 3]);
     }
 
     #[test]

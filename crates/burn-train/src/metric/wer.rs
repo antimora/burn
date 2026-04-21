@@ -62,14 +62,8 @@ impl<B: Backend> Metric for WordErrorRate<B> {
         let targets = input.targets.clone();
         let [batch_size, seq_len] = targets.dims();
 
-        let outputs_data = outputs
-            .to_data()
-            .to_vec::<i64>()
-            .expect("Failed to convert outputs to Vec");
-        let targets_data = targets
-            .to_data()
-            .to_vec::<i64>()
-            .expect("Failed to convert targets to Vec");
+        let outputs_data = outputs.to_data().iter::<i64>().collect::<Vec<_>>();
+        let targets_data = targets.to_data().iter::<i64>().collect::<Vec<_>>();
 
         let pad_token = self.pad_token;
 

@@ -94,8 +94,14 @@ impl<B: Backend> Metric for CharErrorRate<B> {
             let target_lengths_tensor = target_mask.int().sum_dim(1);
 
             (
-                output_lengths_tensor.to_data().to_vec::<i64>().unwrap(),
-                target_lengths_tensor.to_data().to_vec::<i64>().unwrap(),
+                output_lengths_tensor
+                    .to_data()
+                    .iter::<i64>()
+                    .collect::<Vec<_>>(),
+                target_lengths_tensor
+                    .to_data()
+                    .iter::<i64>()
+                    .collect::<Vec<_>>(),
             )
         } else {
             // If there's no padding, all sequences have the full length.
@@ -105,8 +111,8 @@ impl<B: Backend> Metric for CharErrorRate<B> {
             )
         };
 
-        let outputs_data = outputs.to_data().to_vec::<i64>().unwrap();
-        let targets_data = targets.to_data().to_vec::<i64>().unwrap();
+        let outputs_data = outputs.to_data().iter::<i64>().collect::<Vec<_>>();
+        let targets_data = targets.to_data().iter::<i64>().collect::<Vec<_>>();
 
         let total_edit_distance: usize = (0..batch_size)
             .map(|i| {
