@@ -188,11 +188,7 @@ fn test_argmax_all_nan_row() {
 fn test_argmax_nan_leading_non_last_dim() {
     // Column 0: [NaN, NaN, 3.0] -> expected argmax 0
     // Column 1: [1.0, 2.0, 4.0] -> expected argmax 2
-    let tensor = TestTensor::<2>::from([
-        [f32::NAN, 1.0],
-        [f32::NAN, 2.0],
-        [3.0, 4.0],
-    ]);
+    let tensor = TestTensor::<2>::from([[f32::NAN, 1.0], [f32::NAN, 2.0], [3.0, 4.0]]);
     let output = tensor.argmax(0);
     output
         .into_data()
@@ -212,10 +208,7 @@ fn test_argmax_nan_row_length_consistency() {
     let mut long = alloc::vec![1.0f32; 600];
     long[0] = f32::NAN;
     long[1] = f32::NAN;
-    let long = TestTensor::<2>::from_data(
-        TensorData::new(long, [1, 600]),
-        &Default::default(),
-    );
+    let long = TestTensor::<2>::from_data(TensorData::new(long, [1, 600]), &Default::default());
     let long_idx: TensorData = long.argmax(1).into_data();
 
     // Both kernels should agree on "first NaN index = 0".
