@@ -468,16 +468,16 @@ fn test_multiple_reduce_dims_permuted() {
 
 #[test]
 fn test_sum_transposed() {
-    // Stress the sum kernel on a non-contiguous (transposed) input. Uses
-    // total reduction so the assertion doesn't depend on traversal order;
-    // a stronger per-axis variant would require flex issue #4816 to be
-    // resolved first.
+    // Stress the sum kernel on a non-contiguous (transposed) input. Reducing
+    // the (now last) dim with stride != 1 previously hit a fast path that
+    // read contiguous storage, producing sliding-pair sums instead of column
+    // sums.
     let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-    let output = tensor.transpose().sum();
+    let output = tensor.transpose().sum_dim(1);
 
     output
         .into_data()
-        .assert_eq(&TensorData::from([21.0]), false);
+        .assert_eq(&TensorData::from([[5.0], [7.0], [9.0]]), false);
 }
 
 #[test]

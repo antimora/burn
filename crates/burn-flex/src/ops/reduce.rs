@@ -790,8 +790,12 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
     // Check if inner dimension is contiguous (stride = 1) and no negative strides
     let inner_contiguous = !has_negative_strides && (dim + 1 >= ndims || strides[ndims - 1] == 1);
 
-    let result: Vec<f32> = if inner_contiguous && dim == ndims - 1 {
-        // Reducing last dimension with contiguous data: use SIMD
+    let result: Vec<f32> = if inner_contiguous && dim == ndims - 1 && dim_stride == 1 {
+        // Reducing last dimension with contiguous data: use SIMD.
+        // `reduce_last_dim_f32` reads each row as `&data[start..start + dim_size]`,
+        // which only matches the logical row when the reduce dim itself has
+        // stride 1. Transposed views (e.g. shape [3,2] strides [1,3]) would
+        // otherwise read contiguous storage and return wrong sums.
         reduce_last_dim_f32(data, start_offset, outer_size, dim_size, strides, dim, op)
     } else if dim == 0 && inner_contiguous && matches!(op, ReduceOp::Sum) {
         // First-dim reduction with contiguous inner: use cache-friendly accumulation
