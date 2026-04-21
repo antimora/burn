@@ -51,6 +51,11 @@ burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features =
 
 bytemuck = { workspace = true }
 half = { workspace = true }
+# libm for `erf` (f32/f64). num-traits does not expose erf, and even with
+# `std` Rust's f64/f32 have no builtin erf method. libm is already a
+# transitive workspace dep (via num-traits/libm and half), so adding it
+# directly is a no-op on the dependency graph.
+libm = { workspace = true }
 num-traits = { workspace = true }
 
 # Matmul

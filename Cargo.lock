@@ -969,6 +969,7 @@ dependencies = [
  "bytemuck",
  "gemm 0.19.0",
  "half",
+ "libm",
  "macerator",
  "num-traits",
  "once_cell",
