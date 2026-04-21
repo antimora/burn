@@ -30,6 +30,7 @@ pub struct ClassificationOutput<B: Backend> {
 }
 
 impl<B: Backend> ItemLazy for ClassificationOutput<B> {
+    // Flex's IntElem is i32; class indices > i32::MAX would truncate on sync.
     type ItemSync = ClassificationOutput<Flex>;
 
     fn sync(self) -> Self::ItemSync {
@@ -119,6 +120,7 @@ pub struct MultiLabelClassificationOutput<B: Backend> {
 }
 
 impl<B: Backend> ItemLazy for MultiLabelClassificationOutput<B> {
+    // Flex's IntElem is i32; label indices > i32::MAX would truncate on sync.
     type ItemSync = MultiLabelClassificationOutput<Flex>;
 
     fn sync(self) -> Self::ItemSync {

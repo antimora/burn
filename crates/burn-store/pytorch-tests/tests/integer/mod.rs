@@ -1,6 +1,6 @@
 use burn::{
     module::{Module, Param, ParamId},
-    tensor::{Int, Tensor, TensorData, backend::Backend},
+    tensor::{DType, Int, Tensor, TensorData, backend::Backend},
 };
 
 #[derive(Module, Debug)]
@@ -38,10 +38,14 @@ mod tests {
         let input = Tensor::<TestBackend, 2>::ones([3, 3], &device);
 
         let output = model.forward(input);
+        let data = output.to_data();
 
-        // Compare values without assuming a specific int dtype: .pt files
-        // store i64, but the backend's native IntElem may be smaller.
-        let values = output.to_data().iter::<i64>().collect::<Vec<_>>();
+        // The .pt file stores int64 (PyTorch's default int dtype); we pin
+        // that here to catch a regression where the loader silently casts
+        // to the backend's native IntElem (i32 for Flex).
+        assert_eq!(data.dtype, DType::I64);
+
+        let values = data.iter::<i64>().collect::<Vec<_>>();
         assert_eq!(values, vec![1i64, 2, 3]);
     }
 

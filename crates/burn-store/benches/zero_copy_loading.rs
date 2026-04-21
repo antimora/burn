@@ -8,9 +8,9 @@
 //!
 //! ## Understanding the Results
 //!
-//! **IMPORTANT**: For Flex backend, you'll see similar allocation numbers because:
-//! - Flex must own tensor bytes in aligned buffers for its SIMD kernels
-//! - Even with zero-copy, the backend eventually copies data into its own format
+//! **IMPORTANT**: For the Flex backend, you'll see similar allocation numbers
+//! because Flex currently copies incoming bytes into its own `Bytes` storage
+//! on load rather than borrowing from the underlying buffer.
 //!
 //! The zero-copy benefit is:
 //! - **Without zero-copy**: File → Copy to heap (Bytes) → Copy to Vec (backend)

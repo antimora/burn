@@ -51,6 +51,7 @@ impl<B: Backend> SequenceOutput<B> {
 }
 
 impl<B: Backend> ItemLazy for SequenceOutput<B> {
+    // Flex's IntElem is i32; token IDs > i32::MAX would truncate on sync.
     type ItemSync = SequenceOutput<Flex>;
 
     fn sync(self) -> Self::ItemSync {
