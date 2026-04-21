@@ -2551,10 +2551,8 @@ mod tests {
         use super::extremum_indices_f32_last_scalar;
         // Row starts with NaN, with a second NaN later. Expected argmax
         // index is 0 (first NaN); the scalar path currently returns 1.
-        let tensor = FlexTensor::from_data(TensorData::new(
-            vec![f32::NAN, f32::NAN, 3.0f32],
-            [1, 3],
-        ));
+        let tensor =
+            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, 3.0f32], [1, 3]));
         let result = extremum_indices_f32_last_scalar(&tensor, 1, |a, b| a > b);
         let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
         assert_eq!(
@@ -2568,10 +2566,8 @@ mod tests {
     #[test]
     fn test_argmin_f32_scalar_path_first_nan_multiple_nans() {
         use super::extremum_indices_f32_last_scalar;
-        let tensor = FlexTensor::from_data(TensorData::new(
-            vec![f32::NAN, f32::NAN, 3.0f32],
-            [1, 3],
-        ));
+        let tensor =
+            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, 3.0f32], [1, 3]));
         let result = extremum_indices_f32_last_scalar(&tensor, 1, |a, b| a < b);
         let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
         assert_eq!(
@@ -2586,10 +2582,8 @@ mod tests {
     fn test_argmax_f32_scalar_path_all_nan() {
         use super::extremum_indices_f32_last_scalar;
         // All-NaN row. Expected argmax index is 0; scalar path returns 1.
-        let tensor = FlexTensor::from_data(TensorData::new(
-            vec![f32::NAN, f32::NAN, f32::NAN],
-            [1, 3],
-        ));
+        let tensor =
+            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, f32::NAN], [1, 3]));
         let result = extremum_indices_f32_last_scalar(&tensor, 1, |a, b| a > b);
         let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
         assert_eq!(
@@ -2604,10 +2598,8 @@ mod tests {
     fn test_argmax_with_values_f32_scalar_path_first_nan_multiple_nans() {
         use super::extremum_with_indices_f32_last_scalar;
         // Values-and-indices variant has the same bug.
-        let tensor = FlexTensor::from_data(TensorData::new(
-            vec![f32::NAN, f32::NAN, 3.0f32],
-            [1, 3],
-        ));
+        let tensor =
+            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, 3.0f32], [1, 3]));
         let (_, indices) = extremum_with_indices_f32_last_scalar(&tensor, 1, |a, b| a > b);
         let idxs: Vec<isize> = bytemuck::cast_slice(&indices.into_data().bytes).to_vec();
         assert_eq!(
@@ -2628,10 +2620,8 @@ mod tests {
     #[test]
     fn test_argmax_cross_path_consistency_multiple_nans() {
         use super::argmax;
-        let tensor = FlexTensor::from_data(TensorData::new(
-            vec![f32::NAN, f32::NAN, 3.0f32],
-            [1, 3],
-        ));
+        let tensor =
+            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, 3.0f32], [1, 3]));
         let result = argmax(tensor, 1);
         let idxs: Vec<isize> = bytemuck::cast_slice(&result.into_data().bytes).to_vec();
         assert_eq!(

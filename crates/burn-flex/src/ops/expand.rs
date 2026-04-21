@@ -271,10 +271,7 @@ mod tests {
     fn test_expand_to_fewer_dims_panics() {
         // Shape [2, 3, 4] expanded to target [2, 3] would silently drop
         // the trailing dim and produce an invalid layout; must panic.
-        let tensor = FlexTensor::from_data(TensorData::new(
-            alloc::vec![0.0f32; 24],
-            [2, 3, 4],
-        ));
+        let tensor = FlexTensor::from_data(TensorData::new(alloc::vec![0.0f32; 24], [2, 3, 4]));
         let _ = expand(tensor, Shape::new([2, 3]));
     }
 
