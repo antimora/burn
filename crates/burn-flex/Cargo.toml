@@ -69,8 +69,6 @@ portable-atomic = { workspace = true, optional = true }
 portable-atomic-util = { workspace = true, optional = true }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3" }
 realfft = { workspace = true }
 
 [package.metadata.docs.rs]
