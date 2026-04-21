@@ -726,7 +726,9 @@ mod tests {
         assert_eq!(contig.layout().num_elements(), 25);
         assert_eq!(
             contig.storage::<f32>(),
-            &(0..5).flat_map(|r| (0..5).map(move |c| (r * 5 + c) as f32)).collect::<Vec<_>>()[..]
+            &(0..5)
+                .flat_map(|r| (0..5).map(move |c| (r * 5 + c) as f32))
+                .collect::<Vec<_>>()[..]
         );
     }
 
