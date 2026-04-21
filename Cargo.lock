@@ -1175,7 +1175,6 @@ dependencies = [
  "burn-core",
  "burn-cuda",
  "burn-flex",
- "burn-ndarray",
  "burn-nn",
  "burn-tch",
  "burn-tensor",
