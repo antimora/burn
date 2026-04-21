@@ -45,15 +45,15 @@ impl Device for FlexDevice {
 
 impl DeviceOps for FlexDevice {}
 
-impl core::fmt::Debug for FlexDevice {
+impl core::fmt::Display for FlexDevice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Cpu")
     }
 }
 
-impl core::fmt::Display for FlexDevice {
+impl core::fmt::Debug for FlexDevice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Cpu")
+        core::fmt::Display::fmt(self, f)
     }
 }
 
