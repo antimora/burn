@@ -48,7 +48,7 @@ test-vulkan = ["burn-wgpu/vulkan", "test-wgpu"]
 test-metal = ["burn-wgpu/metal", "test-wgpu"]
 
 [dependencies]
-aligned-vec = { version = "0.6", default-features = false }
+aligned-vec = { workspace = true }
 bon = { workspace = true }
 burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.3", optional = true }
 burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.3", optional = true }

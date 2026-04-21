@@ -721,6 +721,7 @@ dependencies = [
  "burn-tensor-testgen",
  "ctor",
  "cubek",
+ "divan",
  "num-traits",
  "rand 0.10.1",
  "serial_test",
@@ -968,7 +969,6 @@ dependencies = [
  "burn-std",
  "burn-tensor",
  "bytemuck",
- "divan",
  "gemm 0.19.0",
  "half",
  "macerator",
@@ -978,7 +978,6 @@ dependencies = [
  "portable-atomic-util",
  "rayon",
  "realfft",
- "rustfft",
 ]
 
 [[package]]
