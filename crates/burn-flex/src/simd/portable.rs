@@ -1361,4 +1361,27 @@ mod tests {
             }
         }
     }
+
+    // Edge cases: empty input, homogeneous all-zero, homogeneous all-one.
+    // Homogeneous inputs exercise the SIMD mask-to-byte conversion for
+    // all-true and all-false cases, which alternating inputs do not.
+    #[test]
+    fn bool_not_u8_edge_cases() {
+        // Empty input.
+        let mut out: Vec<u8> = Vec::new();
+        super::bool_not_u8(&[], &mut out);
+        assert!(out.is_empty());
+
+        // All zeros -> all ones.
+        let a = alloc::vec![0u8; 32];
+        let mut out = alloc::vec![0xAAu8; 32];
+        super::bool_not_u8(&a, &mut out);
+        assert!(out.iter().all(|&b| b == 1));
+
+        // All ones -> all zeros.
+        let a = alloc::vec![1u8; 32];
+        let mut out = alloc::vec![0xAAu8; 32];
+        super::bool_not_u8(&a, &mut out);
+        assert!(out.iter().all(|&b| b == 0));
+    }
 }

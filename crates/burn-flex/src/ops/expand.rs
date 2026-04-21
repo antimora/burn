@@ -276,6 +276,17 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "broadcasting cannot drop dimensions")]
+    fn test_expand_1d_to_scalar_panics() {
+        // 1D -> 0D exercises the saturating_sub edge we removed: dim_diff
+        // used to come out as 0 and the loop would iterate zero times,
+        // silently producing a 0-dim layout over 1D data.
+        let tensor =
+            FlexTensor::from_data(TensorData::new(alloc::vec![1.0f32, 2.0, 3.0], [3]));
+        let _ = expand(tensor, Shape::from(alloc::vec::Vec::<usize>::new()));
+    }
+
+    #[test]
     fn test_broadcast_binary_with_flipped() {
         // One tensor flipped, broadcast to same shape
         // lhs: [1, 2, 3, 4] flipped -> [4, 3, 2, 1], shape [4]
