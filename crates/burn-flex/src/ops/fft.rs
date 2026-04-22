@@ -2134,7 +2134,9 @@ mod tests {
         let mut planner = RealFftPlanner::<f32>::new();
         // Signal shorter than n (pow2); backend zero-pads before the FFT.
         for &(sig_len, n) in &[(3usize, 4usize), (5, 8), (6, 8), (9, 16)] {
-            let data: Vec<f32> = (0..sig_len).map(|i| (i as f32 * 0.41).cos() - 0.2).collect();
+            let data: Vec<f32> = (0..sig_len)
+                .map(|i| (i as f32 * 0.41).cos() - 0.2)
+                .collect();
             let mut padded = data.clone();
             padded.resize(n, 0.0);
 
