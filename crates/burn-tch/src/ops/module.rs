@@ -503,28 +503,9 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         dim: usize,
         n: Option<usize>,
     ) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        // Match flex/cubecl padded-pow2 semantics: output bin count is
-        // `next_pow2(n) / 2 + 1`. We first narrow/pad to `n`, then call
-        // fft_rfft with `n = next_pow2(n)` so tch zero-pads the rest.
-        let dim_i = dim as i64;
-        let (signal, fft_size) = match n {
-            Some(requested_n) => {
-                let cur_len = signal.tensor.size()[dim];
-                let requested_i = requested_n as i64;
-                let narrowed = if cur_len > requested_i {
-                    signal.tensor.narrow(dim_i, 0, requested_i)
-                } else {
-                    signal.tensor
-                };
-                (narrowed, requested_n.next_power_of_two() as i64)
-            }
-            None => {
-                let sig_len = signal.tensor.size()[dim];
-                (signal.tensor, sig_len)
-            }
-        };
-
-        let complex = signal.fft_rfft(Some(fft_size), dim_i, "backward");
+        let complex = signal
+            .tensor
+            .fft_rfft(n.map(|v| v as i64), dim as i64, "backward");
         let re = TchTensor::new(complex.real().contiguous());
         let im = TchTensor::new(complex.imag().contiguous());
         (re, im)
@@ -536,25 +517,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         dim: usize,
         n: Option<usize>,
     ) -> FloatTensor<Self> {
-        // Match flex/cubecl padded-pow2 semantics: do a pow2-size inverse
-        // then narrow to the user's requested length.
-        let dim_i = dim as i64;
-        let spec_bins = spectrum_re.tensor.size()[dim];
-        let (requested_n, fft_size) = match n {
-            Some(requested_n) => (requested_n, requested_n.next_power_of_two()),
-            None => {
-                let sig_len = ((spec_bins - 1) * 2) as usize;
-                (sig_len, sig_len)
-            }
-        };
-
         let complex = tch::Tensor::complex(&spectrum_re.tensor, &spectrum_im.tensor);
-        let signal = complex.fft_irfft(Some(fft_size as i64), dim_i, "backward");
-        let signal = if fft_size > requested_n {
-            signal.narrow(dim_i, 0, requested_n as i64)
-        } else {
-            signal
-        };
-        TchTensor::new(signal)
+        TchTensor::new(complex.fft_irfft(n.map(|v| v as i64), dim as i64, "backward"))
     }
 }

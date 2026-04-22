@@ -179,21 +179,6 @@ fn stft_istft_roundtrip_hann_window() {
 }
 
 #[test]
-fn stft_istft_roundtrip_non_power_of_two_nfft() {
-    let original = TestTensor::<2>::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]]);
-    let n_fft = 5;
-    let hop_length = 1;
-
-    let o = opts(n_fft, hop_length, false, true);
-    let spectrum = stft(original.clone(), None, o);
-    let reconstructed = istft(spectrum, None, Some(10), o);
-
-    reconstructed
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&original.into_data(), Tolerance::absolute(1e-3));
-}
-
-#[test]
 fn stft_with_hamming_window() {
     use burn_tensor::signal::hamming_window;
     let signal = TestTensor::<2>::from([[1.0; 8]]);
@@ -220,6 +205,14 @@ fn stft_rejects_hop_greater_than_window() {
 fn stft_rejects_zero_nfft() {
     let signal = TestTensor::<2>::from([[1.0; 4]]);
     let _ = stft(signal, None, opts(0, 1, false, true));
+}
+
+#[test]
+#[should_panic(expected = "power of two")]
+fn stft_rejects_non_power_of_two_nfft() {
+    // n_fft=5 is not a power of two; should hard-fail in StftOptions::assert_valid.
+    let signal = TestTensor::<2>::from([[1.0; 8]]);
+    let _ = stft(signal, None, opts(5, 1, false, true));
 }
 
 #[test]
@@ -277,7 +270,7 @@ fn istft_rejects_wrong_window_length() {
 #[test]
 #[should_panic(expected = "n_freqs")]
 fn istft_rejects_wrong_n_freqs() {
-    // n_fft=4, onesided=true: expected n_freqs = next_pow2(4)/2+1 = 3.
+    // n_fft=4, onesided=true: expected n_freqs = 4/2+1 = 3.
     // Pass a spectrum with 4 bins to trigger the shape check.
     let spectrum: TestTensor<4> = TestTensor::from([[
         [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],

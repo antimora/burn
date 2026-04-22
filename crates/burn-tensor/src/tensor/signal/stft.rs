@@ -46,6 +46,11 @@ impl StftOptions {
         let hop_length = self.hop_length;
         assert!(n_fft >= 1, "{op}: n_fft must be >= 1, got {n_fft}");
         assert!(
+            n_fft.is_power_of_two(),
+            "{op}: n_fft must be a power of two, got {n_fft}. True non-power-of-two \
+             DFT support is tracked as a follow-up (Bluestein's algorithm)."
+        );
+        assert!(
             hop_length >= 1,
             "{op}: hop_length must be >= 1, got {hop_length}"
         );
@@ -144,25 +149,12 @@ pub fn stft<B: Backend>(
     // Flatten to [batch * n_frames, n_fft] for rfft
     let flat: Tensor<B, 2> = windowed.reshape([batch * n_frames, n_fft]);
 
-    // rfft returns `next_pow2(n_fft) / 2 + 1` bins along dim=1 under the
-    // padded-pow2 semantics used by the flex/cubecl backends.
+    // rfft returns n_fft/2 + 1 bins along dim=1 (n_fft is pow2).
     let (re, im) = rfft(flat, 1, Some(n_fft));
 
-    let n_freqs_actual = re.dims()[1];
     let (re, im, n_freqs) = if onesided {
-        (re, im, n_freqs_actual)
+        (re, im, n_fft / 2 + 1)
     } else {
-        let half = n_fft / 2 + 1;
-        let re = if n_freqs_actual > half {
-            re.narrow(1, 0, half)
-        } else {
-            re
-        };
-        let im = if n_freqs_actual > half {
-            im.narrow(1, 0, half)
-        } else {
-            im
-        };
         let (re_full, im_full) = reconstruct_full_spectrum(re, im, n_fft);
         (re_full, im_full, n_fft)
     };
@@ -250,11 +242,7 @@ pub fn istft<B: Backend>(
         n_frames >= 1,
         "istft: stft_matrix must contain at least one frame, got n_frames=0"
     );
-    let expected_n_freqs = if onesided {
-        n_fft.next_power_of_two() / 2 + 1
-    } else {
-        n_fft
-    };
+    let expected_n_freqs = if onesided { n_fft / 2 + 1 } else { n_fft };
     assert_eq!(
         n_freqs_in, expected_n_freqs,
         "istft: n_freqs dimension ({n_freqs_in}) does not match expected for \

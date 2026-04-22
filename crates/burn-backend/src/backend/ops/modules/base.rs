@@ -1106,13 +1106,13 @@ pub trait ModuleOps<B: Backend> {
 
     /// Real-valued FFT with optional size parameter.
     ///
-    /// When `n` is `None`, the signal must be power-of-two along `dim`, and the output has
+    /// When `n` is `None`, the signal must be a power of two along `dim`, and the output has
     /// `signal_len / 2 + 1` frequency bins.
     ///
-    /// When `n` is `Some(size)`, the signal is truncated or zero-padded to `size`, then
-    /// internally padded to the next power of two. `size` does not need to be a power of two.
-    /// Output has `next_pow2(size) / 2 + 1` frequency bins (so for pow2 `size` this is
-    /// `size / 2 + 1`). All backends follow this padded-pow2 convention for consistency.
+    /// When `n` is `Some(size)`, `size` must also be a power of two. The signal is truncated
+    /// or zero-padded to `size` and the output has `size / 2 + 1` frequency bins. Non-power-
+    /// of-two sizes are currently rejected at the public API boundary; true arbitrary-`n` DFT
+    /// support (Bluestein's algorithm) is tracked as a follow-up.
     ///
     /// Returns two tensors: the real part and the imaginary part.
     fn rfft(
@@ -1126,9 +1126,8 @@ pub trait ModuleOps<B: Backend> {
     /// When `n` is `None`, the reconstructed signal length `2 * (spectrum_size - 1)` must be
     /// a power of two.
     ///
-    /// When `n` is `Some(size)`, backends internally perform a `next_pow2(size)`-point inverse
-    /// (zero-padding the spectrum if needed) then narrow the output to exactly `size` samples.
-    /// `size` must be `>= 1`.
+    /// When `n` is `Some(size)`, `size` must also be a power of two. Output has exactly
+    /// `size` samples.
     fn irfft(
         spectrum_re: FloatTensor<B>,
         spectrum_im: FloatTensor<B>,

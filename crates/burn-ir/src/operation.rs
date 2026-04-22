@@ -1638,10 +1638,10 @@ impl RfftOpIr {
     where
         F: FnMut() -> crate::TensorId,
     {
-        // Padded-pow2 semantics: backends internally round `n` up to the next
-        // power of two, so the output has `next_pow2(n) / 2 + 1` bins.
+        // `n` is required to be a power of two at the public API boundary, so
+        // the output has `n / 2 + 1` bins (matching scipy/torch for pow2 n).
         let mut shape = signal.shape.clone();
-        let fft_len = n.unwrap_or(shape[dim]).next_power_of_two();
+        let fft_len = n.unwrap_or(shape[dim]);
         shape[dim] = fft_len / 2 + 1;
         let dtype = signal.dtype;
 

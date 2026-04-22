@@ -441,10 +441,10 @@ strategies.
 ## Signal Functions
 
 Signal-processing helpers live in `burn::tensor::signal` and operate on real-valued float
-tensors. FFT functions share a padded-pow2 convention: when `n` is `Some(size)`, the input
-is first truncated or zero-padded to `size`, then internally padded to the next power of two
-before the kernel runs, so the output has `next_pow2(size) / 2 + 1` frequency bins (this
-equals `size / 2 + 1` when `size` is already a power of two).
+tensors. FFT length `n` (and `n_fft` in STFT) must currently be a power of two: when `n` is
+`Some(size)`, the input is truncated or zero-padded to `size` and the output has
+`size / 2 + 1` frequency bins. Non-power-of-two sizes panic at the public API boundary;
+general arbitrary-size DFT support (Bluestein's algorithm) is a tracked follow-up.
 
 | Burn API                                         | PyTorch Equivalent                                                  |
 | ------------------------------------------------ | ------------------------------------------------------------------- |
@@ -458,8 +458,8 @@ equals `size / 2 + 1` when `size` is already a power of two).
 `stft` and `istft` share a `StftOptions` struct with fields `n_fft`, `hop_length`,
 `win_length`, `center`, and `onesided`. Use `StftOptions::new(n_fft)` for PyTorch-style
 defaults (`hop_length = n_fft / 4`, `win_length = None`, `center = true`, `onesided = true`).
-The option set is validated on entry to both `stft` and `istft`, which require
-`hop_length <= effective_win_length` (the COLA prerequisite for invertibility).
+The option set is validated on entry to both `stft` and `istft`; `n_fft` must be a power of
+two and `hop_length <= effective_win_length` (the COLA prerequisite for invertibility).
 
 ## Displaying Tensor Details
 

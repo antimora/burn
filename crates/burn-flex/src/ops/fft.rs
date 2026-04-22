@@ -2078,7 +2078,7 @@ mod tests {
         assert_approx_f64(reconstructed, &data, 1e-5);
     }
 
-    // Padded-pow2 semantics coverage: n=Some(..) path exercised directly on flex.
+    // Coverage for the n=Some(pow2) path on flex.
 
     #[test]
     fn rfft_n_larger_than_signal_zero_pads() {
@@ -2109,67 +2109,52 @@ mod tests {
     }
 
     #[test]
-    fn rfft_non_power_of_two_n_outputs_padded_pow2_bins() {
-        // n=5 -> fft_size=8, output 5 bins (8/2+1).
-        let signal = make_f32(vec![1.0, 1.0, 1.0, 1.0, 1.0], vec![5]);
-        let (re, im) = rfft_f32(signal, 0, Some(5));
-        assert_eq!(re.layout().shape()[0], 5);
-        assert_eq!(im.layout().shape()[0], 5);
-        // DC = sum of ones = 5.0
-        let re_vals = re.into_data().as_slice::<f32>().unwrap().to_vec();
-        assert!((re_vals[0] - 5.0).abs() < 1e-4);
-    }
-
-    #[test]
-    fn rfft_irfft_roundtrip_with_non_pow2_n() {
-        let data = vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let signal = make_f32(data.clone(), vec![6]);
-        let (re, im) = rfft_f32(signal, 0, Some(6));
-        let reconstructed = irfft_f32(re, im, 0, Some(6));
+    fn rfft_irfft_roundtrip_with_pow2_n() {
+        let data = vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let signal = make_f32(data.clone(), vec![8]);
+        let (re, im) = rfft_f32(signal, 0, Some(8));
+        let reconstructed = irfft_f32(re, im, 0, Some(8));
         assert_approx(reconstructed, &data, 1e-4);
     }
 
     #[test]
-    fn rfft_f64_with_non_pow2_n() {
-        let data: Vec<f64> = (0..5).map(|i| (i as f64 * 0.3).sin()).collect();
-        let signal = make_f64(data.clone(), vec![5]);
-        let (re, im) = rfft_f64(signal, 0, Some(5));
-        // n=5 -> fft_size=8, 5 bins
-        assert_eq!(re.layout().shape()[0], 5);
-        assert_eq!(im.layout().shape()[0], 5);
+    fn rfft_f64_with_pow2_n_and_truncation() {
+        // Signal length 8, n=4. Output has 4/2+1 = 3 bins.
+        let data: Vec<f64> = (0..8).map(|i| (i as f64 * 0.3).sin()).collect();
+        let signal = make_f64(data, vec![8]);
+        let (re, im) = rfft_f64(signal, 0, Some(4));
+        assert_eq!(re.layout().shape()[0], 3);
+        assert_eq!(im.layout().shape()[0], 3);
     }
 
     #[test]
-    fn rfft_vs_realfft_with_n() {
+    fn rfft_vs_realfft_with_pow2_n_and_padding() {
         use realfft::RealFftPlanner;
 
         let mut planner = RealFftPlanner::<f32>::new();
-        // Check a mix of pow2 and non-pow2 `n` against the reference.
-        for &n in &[4usize, 5, 8, 9, 16] {
-            let fft_size = n.next_power_of_two();
-            let data: Vec<f32> = (0..n).map(|i| (i as f32 * 0.41).cos() - 0.2).collect();
+        // Signal shorter than n (pow2); backend zero-pads before the FFT.
+        for &(sig_len, n) in &[(3usize, 4usize), (5, 8), (6, 8), (9, 16)] {
+            let data: Vec<f32> = (0..sig_len).map(|i| (i as f32 * 0.41).cos() - 0.2).collect();
             let mut padded = data.clone();
-            padded.resize(fft_size, 0.0);
+            padded.resize(n, 0.0);
 
-            // Reference: realfft on the pow2-padded signal.
-            let r2c = planner.plan_fft_forward(fft_size);
-            let mut input = padded.clone();
+            let r2c = planner.plan_fft_forward(n);
+            let mut input = padded;
             let mut ref_spec = r2c.make_output_vec();
             r2c.process(&mut input, &mut ref_spec).unwrap();
 
-            // Under test: flex rfft with the original (non-pow2) n.
-            let signal = make_f32(data.clone(), vec![n]);
+            let signal = make_f32(data, vec![sig_len]);
             let (re, im) = rfft_f32(signal, 0, Some(n));
             let re_v = re.into_data().as_slice::<f32>().unwrap().to_vec();
             let im_v = im.into_data().as_slice::<f32>().unwrap().to_vec();
 
-            assert_eq!(re_v.len(), fft_size / 2 + 1);
+            assert_eq!(re_v.len(), n / 2 + 1);
             for (k, refc) in ref_spec.iter().enumerate() {
                 let err_re = (re_v[k] - refc.re).abs();
                 let err_im = (im_v[k] - refc.im).abs();
                 assert!(
                     err_re < 1e-3 && err_im < 1e-3,
-                    "n={n} bin={k}: got ({}, {}), ref ({}, {})",
+                    "sig_len={sig_len} n={n} bin={k}: got ({}, {}), ref ({}, {})",
                     re_v[k],
                     im_v[k],
                     refc.re,

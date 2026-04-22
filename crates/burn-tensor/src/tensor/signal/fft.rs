@@ -27,16 +27,16 @@ where $N$ is the size of the signal along the specified dimension.
 ///
 /// * `signal` - The input tensor containing the real-valued signal.
 /// * `dim` - The dimension along which to take the FFT.
-/// * `n` - Optional FFT length. When `None`, the signal must be power-of-two along `dim`.
-///   When `Some(n)`, the signal is truncated or zero-padded to length `n`; `n` does not need
-///   to be a power of two. Backends internally round up to the next power of two, so the
-///   output has `next_pow2(n) / 2 + 1` bins (equals `n / 2 + 1` when `n` is already pow2).
+/// * `n` - Optional FFT length. When `None`, the signal must be a power of two along `dim`.
+///   When `Some(n)`, `n` must also be a power of two; the signal is truncated or zero-padded
+///   to length `n`. Non-power-of-two `n` is rejected with a panic (true arbitrary-size DFT
+///   support via Bluestein's algorithm is tracked as a follow-up).
 ///
 /// # Returns
 ///
 /// A tuple containing:
-/// 1. The real part of the spectrum. Output length along `dim` is `next_pow2(n) / 2 + 1` when
-///    `n` is `Some(n)`, or `signal_len / 2 + 1` when `n` is `None`.
+/// 1. The real part of the spectrum. Output length along `dim` is `n / 2 + 1` (using `n` or
+///    `signal_len` respectively).
 /// 2. The imaginary part of the spectrum (same shape).
 ///
 /// # Example
@@ -63,7 +63,14 @@ pub fn rfft<B: Backend, const D: usize>(
             &signal.shape(),
             dim
         )),
-        Some(n) => assert!(n >= 1, "rfft: n must be >= 1, got {n}"),
+        Some(n) => {
+            assert!(n >= 1, "rfft: n must be >= 1, got {n}");
+            assert!(
+                n.is_power_of_two(),
+                "rfft: n must be a power of two, got {n}. True non-power-of-two \
+                 DFT support is tracked as a follow-up (Bluestein's algorithm)."
+            );
+        }
     }
 
     let (spectrum_re, spectrum_im) = B::rfft(signal.primitive.tensor(), dim, n);
@@ -97,8 +104,8 @@ where $N$ is the size of the reconstructed signal.
 /// * `spectrum_im` - The imaginary part of the spectrum.
 /// * `dim` - The dimension along which to take the inverse FFT.
 /// * `n` - Optional output signal length. When `None`, the reconstructed signal length
-///   `2 * (size - 1)` must be a power of two. When `Some(n)`, backends internally perform a
-///   `next_pow2(n)`-point inverse then narrow the output to exactly `n` samples. `n >= 1`.
+///   `2 * (size - 1)` must be a power of two. When `Some(n)`, `n` must also be a power of
+///   two and the output has exactly `n` samples. Non-power-of-two `n` is rejected.
 ///
 /// # Returns
 ///
@@ -127,6 +134,11 @@ pub fn irfft<B: Backend, const D: usize>(
 
     if let Some(n) = n {
         assert!(n >= 1, "irfft: n must be >= 1, got {n}");
+        assert!(
+            n.is_power_of_two(),
+            "irfft: n must be a power of two, got {n}. True non-power-of-two \
+             DFT support is tracked as a follow-up (Bluestein's algorithm)."
+        );
     }
 
     let signal = B::irfft(
