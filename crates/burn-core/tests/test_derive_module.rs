@@ -740,7 +740,7 @@ mod grad_distributed {
 
     fn create_devices<D: Device>(type_id: u16, count: usize) -> Vec<D> {
         (0..count)
-            .map(|i| D::from_id(DeviceId::new(type_id, i as u32)))
+            .map(|i| D::from_id(DeviceId::new(type_id, i as u16)))
             .collect()
     }
 
