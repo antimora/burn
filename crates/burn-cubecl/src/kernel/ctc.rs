@@ -13,6 +13,114 @@ use burn_backend::{Shape, TensorMetadata};
 /// upper bound. Inputs exceeding it panic rather than silently degrade.
 const SHARED_ALPHA_CAPACITY: u32 = 8192;
 
+/// Class label at position `s` of the blank-inserted label sequence `l'`.
+/// Odd `s` reads the underlying target at index `(s-1)/2`; even `s` is a blank.
+#[cube]
+fn l_prime_class<I: Numeric>(
+    s: usize,
+    targets: &Tensor<I>,
+    n: usize,
+    tgt_n: usize,
+    tgt_s: usize,
+    blank: usize,
+) -> usize {
+    if s % 2 == 1 {
+        u32::cast_from(targets[n * tgt_n + ((s - 1) / 2) * tgt_s]) as usize
+    } else {
+        blank
+    }
+}
+
+/// Numerically stable `log(exp(a) + exp(b))` with a sentinel short-circuit.
+/// When `max(a, b) < unreachable_threshold`, returns `max(a, b)` directly so
+/// the sentinel value doesn't drift upward each recursion step when both
+/// inputs sit at the `-6e4` floor.
+///
+/// The threshold's magnitude is forced by f16: the sentinel can't go below
+/// `-65504` (f16 max magnitude), so it's `-6e4`, and the threshold has to sit
+/// above the sentinel but below any plausible legit alpha value, leaving a
+/// narrow band around `-1e4`. On sufficiently long sequences where legit
+/// alpha values naturally drop below `-1e4` (roughly `T * log(1/C) < -1e4`),
+/// reachable states get misclassified as unreachable. Mitigation is a
+/// WGSL-only path with a smaller sentinel; WGSL spec 8.7 lets implementations
+/// replace runtime `1/0` with zero, so `-inf` can't be synthesized reliably.
+#[cube]
+fn log_sum_exp2<F: Float>(a: F, b: F, unreachable_threshold: F, one: F) -> F {
+    let mut mx = a;
+    let mut mn = b;
+    if b > a {
+        mx = b;
+        mn = a;
+    }
+    if mx < unreachable_threshold {
+        mx
+    } else {
+        mx + (one + (mn - mx).exp()).ln()
+    }
+}
+
+/// Single alpha (or beta) recurrence step. `near`, `near_m1`, `near_m2` are
+/// the three values from the previous time row (alpha: `t-1`; beta: `t+1`).
+/// `log_p` is the emission log-prob at the current `(t, l'[s])` and
+/// `skip_allowed` toggles the 2-position skip transition.
+#[cube]
+fn recurrence_step<F: Float>(
+    near: F,
+    near_m1: F,
+    near_m2: F,
+    log_p: F,
+    skip_allowed: bool,
+    unreachable_threshold: F,
+    one: F,
+) -> F {
+    let lse_01 = log_sum_exp2::<F>(near, near_m1, unreachable_threshold, one);
+    let combined = if skip_allowed {
+        log_sum_exp2::<F>(lse_01, near_m2, unreachable_threshold, one)
+    } else {
+        lse_01
+    };
+    log_p + combined
+}
+
+/// Final `-log(alpha_last_blank + alpha_last_label)` reduction. Synthesizes a
+/// true `+inf` via `exp()` overflow when both final alphas are at the sentinel
+/// (the target is unreachable), so downstream `zero_infinity` logic can detect
+/// it via `is_inf`. Builds the overflow arithmetically from a runtime-dependent
+/// value (`target_len`, guaranteed >= 1 here) to keep WGSL's comptime-overflow
+/// validator quiet.
+#[cube]
+fn finalize_nll<F: Float>(
+    last_blank: F,
+    last_label: F,
+    target_len: usize,
+    unreachable_threshold: F,
+    one: F,
+) -> F {
+    let mut mx = last_blank;
+    let mut mn = last_label;
+    if last_label > last_blank {
+        mx = last_label;
+        mn = last_blank;
+    }
+    if mx < unreachable_threshold {
+        (F::new(1000.0_f32) * F::cast_from(target_len as u32)).exp()
+    } else {
+        F::new(0.0) - (mx + (one + (mn - mx).exp()).ln())
+    }
+}
+
+/// Value to emit when `input_len == 0`. `target_len == 0` is the only case
+/// with a valid alignment (P(empty | empty) = 1, nll = 0); otherwise the
+/// target is unreachable and the output is `+inf` synthesized via overflow.
+#[cube]
+fn empty_input_nll<F: Float>(target_len: usize) -> F {
+    if target_len == 0 {
+        F::new(0.0)
+    } else {
+        (F::new(1000.0_f32) * F::cast_from(target_len as u32)).exp()
+    }
+}
+
 /// CTC alpha-recursion kernel.
 ///
 /// Each cube handles one batch element. `cube_dim.x` is fixed at launch time
@@ -52,6 +160,15 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     let input_len = u32::cast_from(input_lengths[n]) as usize;
     let l_prime_len = 2 * target_len + 1;
 
+    // Empty-input edge case: handled identically in both kernels to keep the
+    // forward loss and the backward nll agreeing for this sample.
+    if input_len == 0 {
+        if UNIT_POS_X == 0 {
+            output[n] = empty_input_nll::<F>(target_len);
+        }
+        terminate!();
+    }
+
     let lp_t = log_probs.stride(0);
     let lp_n = log_probs.stride(1);
     let lp_c = log_probs.stride(2);
@@ -64,29 +181,28 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     // batches in the t-loop (a thread writing alpha[s] races with another
     // thread still reading alpha[s-1] or alpha[s-2] for its own s).
     let mut alpha = SharedMemory::<F>::new(2 * alpha_cap);
-    // f32::NEG_INFINITY via F::new emits `f32(-inf)` in WGSL which is not a
-    // valid identifier there. Use a finite sentinel that fits in both f32
-    // and f16 (max magnitude ~65504) and is far enough below any real
-    // accumulated alpha that `exp(alpha - neg_inf)` underflows cleanly.
-    // The sentinel drifts slightly each recursion step on f32 (precision is
-    // better than log_probs magnitude), so downstream detection uses a
-    // threshold comparison instead of exact equality.
+    // Sentinel for unreachable states. f16 caps at ~65504 magnitude, so we
+    // can't go lower than `-6e4` without blowing past that range; WGSL also
+    // rejects `f32(-inf)` as an identifier, so a real -inf literal isn't an
+    // option anyway. On f32 the sentinel drifts slightly each recursion step
+    // (log(2) per step when both log_sum_exp inputs sit at the sentinel),
+    // which is why the recurrence compares against a threshold instead of
+    // checking `== neg_inf`. See `log_sum_exp2` for the long-sequence caveat.
     let neg_inf = F::new(-6.0e4_f32);
     let unreachable_threshold = F::new(-1.0e4_f32);
     let one = F::new(1.0);
 
-    // Initialize alpha at t = 0. Each thread strides over its assigned s positions.
+    // Initialize alpha at t = 0 for s < l_prime_len; positions beyond that
+    // are never read by the recurrence (s < l_prime_len in every read) so
+    // they don't need to be touched.
     let mut s = UNIT_POS_X as usize;
-    while s < alpha_cap {
+    while s < l_prime_len {
         let mut init = neg_inf;
-        if s < l_prime_len {
-            // l'[s] class for s in {0, 1}
-            if s == 0 {
-                init = log_probs[n * lp_n + blank_u * lp_c];
-            } else if s == 1 {
-                let l1 = u32::cast_from(targets[n * tgt_n]) as usize;
-                init = log_probs[n * lp_n + l1 * lp_c];
-            }
+        if s == 0 {
+            init = log_probs[n * lp_n + blank_u * lp_c];
+        } else if s == 1 {
+            let l1 = u32::cast_from(targets[n * tgt_n]) as usize;
+            init = log_probs[n * lp_n + l1 * lp_c];
         }
         alpha[s] = init;
         s += cube_dim;
@@ -99,20 +215,14 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     for t in 1..input_len {
         let mut s = UNIT_POS_X as usize;
         while s < l_prime_len {
-            // Compute l'[s] class
-            let l_class = if s % 2 == 1 {
-                u32::cast_from(targets[n * tgt_n + ((s - 1) / 2) * tgt_s]) as usize
+            let l_class = l_prime_class::<I>(s, targets, n, tgt_n, tgt_s, blank_u);
+            let log_p = log_probs[t * lp_t + n * lp_n + l_class * lp_c];
+
+            let l_class_m2 = if s >= 2 {
+                l_prime_class::<I>(s - 2, targets, n, tgt_n, tgt_s, blank_u)
             } else {
                 blank_u
             };
-            let log_p = log_probs[t * lp_t + n * lp_n + l_class * lp_c];
-
-            // l'[s-2] class - check skip transition eligibility
-            let mut l_class_m2 = blank_u;
-            if s >= 2 && (s - 2) % 2 == 1 {
-                l_class_m2 =
-                    u32::cast_from(targets[n * tgt_n + ((s - 2 - 1) / 2) * tgt_s]) as usize;
-            }
             let skip_allowed = s >= 2 && l_class != blank_u && l_class != l_class_m2;
 
             let a_s = alpha[s];
@@ -125,38 +235,15 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
                 a_s_m2 = alpha[s - 2];
             }
 
-            // log_sum_exp(a_s, a_s_m1). The `mx < threshold` guard catches
-            // unreachable positions whose alphas are at the sentinel (or
-            // drifted below threshold). Computing log_sum_exp when both
-            // terms are at the sentinel would cause the value to drift
-            // upward each iteration.
-            let mut mx01 = a_s;
-            let mut mn01 = a_s_m1;
-            if a_s_m1 > a_s {
-                mx01 = a_s_m1;
-                mn01 = a_s;
-            }
-            let lse_01 = if mx01 < unreachable_threshold {
-                mx01
-            } else {
-                mx01 + (one + (mn01 - mx01).exp()).ln()
-            };
-
-            let mut combined = lse_01;
-            if skip_allowed {
-                let mut mx2 = lse_01;
-                let mut mn2 = a_s_m2;
-                if a_s_m2 > lse_01 {
-                    mx2 = a_s_m2;
-                    mn2 = lse_01;
-                }
-                combined = if mx2 < unreachable_threshold {
-                    mx2
-                } else {
-                    mx2 + (one + (mn2 - mx2).exp()).ln()
-                };
-            }
-            alpha[alpha_cap + s] = log_p + combined;
+            alpha[alpha_cap + s] = recurrence_step::<F>(
+                a_s,
+                a_s_m1,
+                a_s_m2,
+                log_p,
+                skip_allowed,
+                unreachable_threshold,
+                one,
+            );
             s += cube_dim;
         }
         sync_cube();
@@ -180,24 +267,13 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
         if target_len > 0 {
             last_label = alpha[2 * target_len - 1];
         }
-
-        let mut mx = last_blank;
-        let mut mn = last_label;
-        if last_label > last_blank {
-            mx = last_label;
-            mn = last_blank;
-        }
-        // When the sentinel dominates, the target is unreachable - emit a
-        // true +inf via exp() overflow so downstream `is_inf` checks fire.
-        // Building it arithmetically from a runtime-dependent value also
-        // keeps WGSL's comptime-overflow validator happy.
-        output[n] = if mx < unreachable_threshold {
-            // Use a runtime-dependent value so WGSL can't fold at comptime
-            // and reject as overflow. `input_len >= 1` is guaranteed here.
-            (F::new(1000.0_f32) * F::cast_from(input_len as u32)).exp()
-        } else {
-            F::new(0.0) - (mx + (one + (mn - mx).exp()).ln())
-        };
+        output[n] = finalize_nll::<F>(
+            last_blank,
+            last_label,
+            target_len,
+            unreachable_threshold,
+            one,
+        );
     }
 }
 
@@ -307,6 +383,15 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     let input_len = u32::cast_from(input_lengths[n]) as usize;
     let l_prime_len = 2 * target_len + 1;
 
+    // Empty input: alpha_out and beta_out stay at the host-side -inf pre-fill.
+    // Emit the semantically correct nll (0 for target_len=0, +inf otherwise).
+    if input_len == 0 {
+        if UNIT_POS_X == 0 {
+            nll_out[n] = empty_input_nll::<F>(target_len);
+        }
+        terminate!();
+    }
+
     let lp_t = log_probs.stride(0);
     let lp_n = log_probs.stride(1);
     let lp_c = log_probs.stride(2);
@@ -325,41 +410,30 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     // residual alpha values sitting in the active row between phases are never
     // observed by beta (its boundary init overwrites every slot it reads).
     let mut state = SharedMemory::<F>::new(2 * alpha_cap);
-    // See ctc_loss_kernel: `F::new(f32::NEG_INFINITY)` emits invalid WGSL.
-    // Sentinel must also fit f16 (max magnitude ~65504). Drift from sentinel
-    // is handled via threshold detection rather than exact equality.
+    // Sentinel for unreachable states. See ctc_loss_kernel for the full
+    // rationale: f16's 65504 magnitude cap forces the -6e4 floor, WGSL
+    // rejects f32(-inf) literals, and the threshold catches sentinel drift.
     let neg_inf = F::new(-6.0e4_f32);
     let unreachable_threshold = F::new(-1.0e4_f32);
     let one = F::new(1.0);
 
-    // Mirrors ctc_loss_kernel: with input_len == 0 the t = 0 init would read
-    // log_probs out of bounds. The beta phase below already guards on this.
-    if input_len == 0 {
-        if UNIT_POS_X == 0 {
-            nll_out[n] = F::new(0.0);
-        }
-        terminate!();
-    }
-
     // Alpha phase (forward).
     //
-    // Initialize alpha at t = 0. We write s=0 and s=1 from log_probs; the rest
-    // is -inf. Every thread also publishes its slot to alpha_out[0, n, s].
+    // Initialize alpha at t = 0 for s < l_prime_len. Positions beyond
+    // l_prime_len are never read by the recurrence, so they don't need
+    // to be touched in shared memory; and they stay at the host-side -inf
+    // pre-fill in alpha_out.
     let mut s = UNIT_POS_X as usize;
-    while s < alpha_cap {
+    while s < l_prime_len {
         let mut init = neg_inf;
-        if s < l_prime_len {
-            if s == 0 {
-                init = log_probs[n * lp_n + blank_u * lp_c];
-            } else if s == 1 {
-                let l1 = u32::cast_from(targets[n * tgt_n]) as usize;
-                init = log_probs[n * lp_n + l1 * lp_c];
-            }
+        if s == 0 {
+            init = log_probs[n * lp_n + blank_u * lp_c];
+        } else if s == 1 {
+            let l1 = u32::cast_from(targets[n * tgt_n]) as usize;
+            init = log_probs[n * lp_n + l1 * lp_c];
         }
         state[s] = init;
-        if s < l_prime_len {
-            alpha_out[n * ao_n + s * ao_s] = init;
-        }
+        alpha_out[n * ao_n + s * ao_s] = init;
         s += cube_dim;
     }
     sync_cube();
@@ -367,18 +441,14 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     for t in 1..input_len {
         let mut s = UNIT_POS_X as usize;
         while s < l_prime_len {
-            let l_class = if s % 2 == 1 {
-                u32::cast_from(targets[n * tgt_n + ((s - 1) / 2) * tgt_s]) as usize
+            let l_class = l_prime_class::<I>(s, targets, n, tgt_n, tgt_s, blank_u);
+            let log_p = log_probs[t * lp_t + n * lp_n + l_class * lp_c];
+
+            let l_class_m2 = if s >= 2 {
+                l_prime_class::<I>(s - 2, targets, n, tgt_n, tgt_s, blank_u)
             } else {
                 blank_u
             };
-            let log_p = log_probs[t * lp_t + n * lp_n + l_class * lp_c];
-
-            let mut l_class_m2 = blank_u;
-            if s >= 2 && (s - 2) % 2 == 1 {
-                l_class_m2 =
-                    u32::cast_from(targets[n * tgt_n + ((s - 2 - 1) / 2) * tgt_s]) as usize;
-            }
             let skip_allowed = s >= 2 && l_class != blank_u && l_class != l_class_m2;
 
             let a_s = state[s];
@@ -391,33 +461,15 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
                 a_s_m2 = state[s - 2];
             }
 
-            let mut mx01 = a_s;
-            let mut mn01 = a_s_m1;
-            if a_s_m1 > a_s {
-                mx01 = a_s_m1;
-                mn01 = a_s;
-            }
-            let lse_01 = if mx01 < unreachable_threshold {
-                mx01
-            } else {
-                mx01 + (one + (mn01 - mx01).exp()).ln()
-            };
-
-            let mut combined = lse_01;
-            if skip_allowed {
-                let mut mx2 = lse_01;
-                let mut mn2 = a_s_m2;
-                if a_s_m2 > lse_01 {
-                    mx2 = a_s_m2;
-                    mn2 = lse_01;
-                }
-                combined = if mx2 < unreachable_threshold {
-                    mx2
-                } else {
-                    mx2 + (one + (mn2 - mx2).exp()).ln()
-                };
-            }
-            state[alpha_cap + s] = log_p + combined;
+            state[alpha_cap + s] = recurrence_step::<F>(
+                a_s,
+                a_s_m1,
+                a_s_m2,
+                log_p,
+                skip_allowed,
+                unreachable_threshold,
+                one,
+            );
             s += cube_dim;
         }
         sync_cube();
@@ -438,19 +490,13 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
         if target_len > 0 {
             last_label = state[2 * target_len - 1];
         }
-        let mut mx = last_blank;
-        let mut mn = last_label;
-        if last_label > last_blank {
-            mx = last_label;
-            mn = last_blank;
-        }
-        // See ctc_loss_kernel: emit true +inf via exp() overflow when the
-        // sentinel dominates, so downstream `is_inf` checks fire.
-        nll_out[n] = if mx < unreachable_threshold {
-            (F::new(1000.0_f32) * F::cast_from(input_len as u32)).exp()
-        } else {
-            F::new(0.0) - (mx + (one + (mn - mx).exp()).ln())
-        };
+        nll_out[n] = finalize_nll::<F>(
+            last_blank,
+            last_label,
+            target_len,
+            unreachable_threshold,
+            one,
+        );
     }
 
     // Fence thread 0's read of state[2*target_len] / state[2*target_len - 1]
@@ -458,101 +504,72 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     sync_cube();
 
     // Beta phase (reverse).
+    //
+    // Boundary initialization at t = input_len - 1: set beta[s] = log_probs[t, l'[s]]
+    // at s = 2*target_len, and when target_len > 0 also at s = 2*target_len - 1.
+    // All other s positions in range get -inf.
+    let t_last = input_len - 1;
+    let mut s = UNIT_POS_X as usize;
+    while s < l_prime_len {
+        let is_last_blank = s == 2 * target_len;
+        let is_last_label = target_len > 0 && s == 2 * target_len - 1;
+        let mut init = neg_inf;
+        if is_last_blank || is_last_label {
+            let l_class = l_prime_class::<I>(s, targets, n, tgt_n, tgt_s, blank_u);
+            init = log_probs[t_last * lp_t + n * lp_n + l_class * lp_c];
+        }
+        state[s] = init;
+        beta_out[t_last * bo_t + n * bo_n + s * bo_s] = init;
+        s += cube_dim;
+    }
+    sync_cube();
 
-    if input_len > 0 {
-        // Boundary initialization at t = input_len - 1: set beta[s] = log_probs[t, l'[s]]
-        // at s = 2*target_len, and when target_len > 0 also at s = 2*target_len - 1.
-        // All other s positions in range get -inf.
-        let t_last = input_len - 1;
+    // Step back from t = input_len - 2 down to t = 0.
+    for t_rev in 1..input_len {
+        let t = input_len - 1 - t_rev;
+
         let mut s = UNIT_POS_X as usize;
         while s < l_prime_len {
-            let is_last_blank = s == 2 * target_len;
-            let is_last_label = target_len > 0 && s == 2 * target_len - 1;
-            let mut init = neg_inf;
-            if is_last_blank || is_last_label {
-                let l_class = if s % 2 == 1 {
-                    u32::cast_from(targets[n * tgt_n + ((s - 1) / 2) * tgt_s]) as usize
-                } else {
-                    blank_u
-                };
-                init = log_probs[t_last * lp_t + n * lp_n + l_class * lp_c];
+            let l_class = l_prime_class::<I>(s, targets, n, tgt_n, tgt_s, blank_u);
+            let log_p = log_probs[t * lp_t + n * lp_n + l_class * lp_c];
+
+            let l_class_p2 = if s + 2 < l_prime_len {
+                l_prime_class::<I>(s + 2, targets, n, tgt_n, tgt_s, blank_u)
+            } else {
+                blank_u
+            };
+            let skip_allowed = s + 2 < l_prime_len && l_class != blank_u && l_class != l_class_p2;
+
+            let b_s = state[s];
+            let mut b_s_p1 = neg_inf;
+            if s + 1 < l_prime_len {
+                b_s_p1 = state[s + 1];
             }
-            state[s] = init;
-            beta_out[t_last * bo_t + n * bo_n + s * bo_s] = init;
+            let mut b_s_p2 = neg_inf;
+            if s + 2 < l_prime_len {
+                b_s_p2 = state[s + 2];
+            }
+
+            state[alpha_cap + s] = recurrence_step::<F>(
+                b_s,
+                b_s_p1,
+                b_s_p2,
+                log_p,
+                skip_allowed,
+                unreachable_threshold,
+                one,
+            );
             s += cube_dim;
         }
         sync_cube();
 
-        // Step back from t = input_len - 2 down to t = 0.
-        for t_rev in 1..input_len {
-            let t = input_len - 1 - t_rev;
-
-            let mut s = UNIT_POS_X as usize;
-            while s < l_prime_len {
-                let l_class = if s % 2 == 1 {
-                    u32::cast_from(targets[n * tgt_n + ((s - 1) / 2) * tgt_s]) as usize
-                } else {
-                    blank_u
-                };
-                let log_p = log_probs[t * lp_t + n * lp_n + l_class * lp_c];
-
-                let mut l_class_p2 = blank_u;
-                if s + 2 < l_prime_len && (s + 2) % 2 == 1 {
-                    l_class_p2 =
-                        u32::cast_from(targets[n * tgt_n + s.div_ceil(2) * tgt_s]) as usize;
-                }
-                let skip_allowed =
-                    s + 2 < l_prime_len && l_class != blank_u && l_class != l_class_p2;
-
-                let b_s = state[s];
-                let mut b_s_p1 = neg_inf;
-                if s + 1 < l_prime_len {
-                    b_s_p1 = state[s + 1];
-                }
-                let mut b_s_p2 = neg_inf;
-                if s + 2 < l_prime_len {
-                    b_s_p2 = state[s + 2];
-                }
-
-                let mut mx01 = b_s;
-                let mut mn01 = b_s_p1;
-                if b_s_p1 > b_s {
-                    mx01 = b_s_p1;
-                    mn01 = b_s;
-                }
-                let lse_01 = if mx01 < unreachable_threshold {
-                    mx01
-                } else {
-                    mx01 + (one + (mn01 - mx01).exp()).ln()
-                };
-
-                let mut combined = lse_01;
-                if skip_allowed {
-                    let mut mx2 = lse_01;
-                    let mut mn2 = b_s_p2;
-                    if b_s_p2 > lse_01 {
-                        mx2 = b_s_p2;
-                        mn2 = lse_01;
-                    }
-                    combined = if mx2 < unreachable_threshold {
-                        mx2
-                    } else {
-                        mx2 + (one + (mn2 - mx2).exp()).ln()
-                    };
-                }
-                state[alpha_cap + s] = log_p + combined;
-                s += cube_dim;
-            }
-            sync_cube();
-
-            let mut s = UNIT_POS_X as usize;
-            while s < l_prime_len {
-                state[s] = state[alpha_cap + s];
-                beta_out[t * bo_t + n * bo_n + s * bo_s] = state[s];
-                s += cube_dim;
-            }
-            sync_cube();
+        let mut s = UNIT_POS_X as usize;
+        while s < l_prime_len {
+            state[s] = state[alpha_cap + s];
+            beta_out[t * bo_t + n * bo_n + s * bo_s] = state[s];
+            s += cube_dim;
         }
+        sync_cube();
     }
 }
 
