@@ -437,7 +437,6 @@ fn extract_loss<B: Backend>(alpha: &AlphaCtx<B>, target_lengths: IntTensor<B>) -
     B::float_neg(log_likelihood)
 }
 
-
 /// Insert blank labels between each target label: [b, l1, b, l2, ..., b]
 fn insert_blanks<B: Backend>(
     targets: &IntTensor<B>,
