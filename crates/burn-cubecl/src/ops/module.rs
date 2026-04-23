@@ -341,6 +341,10 @@ where
         .expect("Kernel to never fail")
     }
 
+    fn has_ctc_loss_backward() -> bool {
+        true
+    }
+
     fn ctc_loss(
         log_probs: FloatTensor<Self>,
         targets: IntTensor<Self>,

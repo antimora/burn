@@ -1886,22 +1886,29 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
     fn ctc_loss(
         log_probs: FloatTensor<Autodiff<B, C>>,
-        targets: burn_backend::tensor::IntTensor<Autodiff<B, C>>,
-        input_lengths: burn_backend::tensor::IntTensor<Autodiff<B, C>>,
-        target_lengths: burn_backend::tensor::IntTensor<Autodiff<B, C>>,
+        targets: IntTensor<Autodiff<B, C>>,
+        input_lengths: IntTensor<Autodiff<B, C>>,
+        target_lengths: IntTensor<Autodiff<B, C>>,
         blank: usize,
     ) -> FloatTensor<Autodiff<B, C>> {
+        // Backends without a native ctc_loss_backward fall back to the default
+        // implementation, which is built from differentiable tensor ops so the
+        // autodiff layer derives the gradient automatically.
+        if !B::has_ctc_loss_backward() {
+            return burn_backend::ops::ctc::ctc_loss_default::<Self>(
+                log_probs,
+                targets,
+                input_lengths,
+                target_lengths,
+                blank,
+            );
+        }
+
         #[derive(Debug)]
         struct CtcLoss;
 
         impl<B: Backend> Backward<B, 1> for CtcLoss {
-            type State = (
-                NodeId,
-                burn_backend::tensor::IntTensor<B>,
-                burn_backend::tensor::IntTensor<B>,
-                burn_backend::tensor::IntTensor<B>,
-                usize,
-            );
+            type State = (NodeId, IntTensor<B>, IntTensor<B>, IntTensor<B>, usize);
 
             fn backward(
                 self,

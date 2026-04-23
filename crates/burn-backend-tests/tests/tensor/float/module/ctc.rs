@@ -33,9 +33,17 @@ fn test_ctc_loss_unreachable_target_is_inf() {
 /// samples, and `NaN * 0 = NaN` under IEEE 754 would defeat any outer
 /// zero_infinity masking. The fix masks gradient entries for is_inf(nll)
 /// samples directly inside `ctc_grad_from_alpha_beta_default`.
+///
+/// Skipped on backends without a native `ctc_loss_backward`; for those
+/// backends the gradient is built by autodiff differentiating through the
+/// decomposed forward, which never enters `ctc_grad_from_alpha_beta_default`.
 #[test]
 fn test_ctc_loss_backward_unreachable_is_finite() {
     use burn_tensor::ops::ModuleOps;
+
+    if !<TestBackend as ModuleOps<TestBackend>>::has_ctc_loss_backward() {
+        return;
+    }
 
     let device: <TestBackend as burn_tensor::backend::Backend>::Device = Default::default();
 

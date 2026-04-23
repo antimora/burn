@@ -672,6 +672,14 @@ impl ModuleOps<Self> for Dispatch {
         )
     }
 
+    fn has_ctc_loss_backward() -> bool {
+        // Dispatch routes per-tensor at runtime, but autodiff queries this flag
+        // statically. Returning `false` makes autodiff differentiate through
+        // the default decomposed forward, which is safe for every inner
+        // backend regardless of whether it has its own ctc_loss_backward.
+        false
+    }
+
     fn ctc_loss(
         log_probs: FloatTensor<Self>,
         targets: IntTensor<Self>,

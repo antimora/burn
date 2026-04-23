@@ -498,6 +498,10 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
+    fn has_ctc_loss_backward() -> bool {
+        true
+    }
+
     fn ctc_loss(
         log_probs: FloatTensor<Self>,
         targets: IntTensor<Self>,

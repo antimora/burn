@@ -3,7 +3,7 @@ use crate::{
     stream::{OperationStreams, execution::Operation},
 };
 use burn_backend::{
-    Element, Shape,
+    Element,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
         InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
@@ -1632,6 +1632,10 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         outputs.next().unwrap()
     }
 
+    fn has_ctc_loss_backward() -> bool {
+        B::has_ctc_loss_backward()
+    }
+
     fn ctc_loss(
         log_probs: FloatTensor<Fusion<B>>,
         targets: IntTensor<Fusion<B>>,
@@ -1639,58 +1643,48 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         target_lengths: IntTensor<Fusion<B>>,
         blank: usize,
     ) -> FloatTensor<Fusion<B>> {
-        // CTC is non-fuseable (it's one dense kernel call on backends that
-        // implement it, or a 40*T op chain on the default path). Going through
-        // the fusion stream's default path produces wrong results on lazy
-        // backends because the decomposed graph interacts badly with fusion.
-        // Route through a `CustomOpIr` so the stream drains its inputs, runs
-        // `B::ctc_loss` (the inner backend's native kernel), and registers the
-        // output handle back into the stream.
-        #[derive(new, Debug)]
-        struct CtcLossOps<B: FusionBackend> {
-            desc: CustomOpIr,
-            blank: usize,
-            _b: PhantomData<B>,
-        }
-
-        impl<B: FusionBackend> Operation<B::FusionRuntime> for CtcLossOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let ([log_probs, targets, input_lengths, target_lengths], [out]) =
-                    self.desc.as_fixed();
-                let lp = handles.get_float_tensor::<B>(log_probs);
-                let tg = handles.get_int_tensor::<B>(targets);
-                let il = handles.get_int_tensor::<B>(input_lengths);
-                let tl = handles.get_int_tensor::<B>(target_lengths);
-                let output = B::ctc_loss(lp, tg, il, tl, self.blank);
-                handles.register_float_tensor::<B>(&out.id, output);
+        // CTC is treated as its own non-fuseable IR node, the same way
+        // `attention` and `conv2d` are. The execute callback drains the input
+        // handles and dispatches to `B::ctc_loss` on the inner backend, which
+        // either runs a native kernel (cubecl, libtorch) or the decomposed
+        // default - either way it executes on raw inner-backend tensors,
+        // never re-entering the fusion stream.
+        make_ops!(
+            CtcLossOps,
+            CtcLossOpIr,
+            |args: &CtcLossOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let log_probs = handles.get_float_tensor::<B>(&args.log_probs);
+                let targets = handles.get_int_tensor::<B>(&args.targets);
+                let input_lengths = handles.get_int_tensor::<B>(&args.input_lengths);
+                let target_lengths = handles.get_int_tensor::<B>(&args.target_lengths);
+                let output = B::ctc_loss(
+                    log_probs,
+                    targets,
+                    input_lengths,
+                    target_lengths,
+                    args.blank,
+                );
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
-        }
+        );
 
         let streams =
             OperationStreams::with_inputs([&log_probs, &targets, &input_lengths, &target_lengths]);
         let client = log_probs.client.clone();
-        let batch_size = log_probs.shape[1];
-        let out = TensorIr::uninit(
-            client.create_empty_handle(),
-            Shape::new([batch_size]),
-            log_probs.dtype,
+        let desc = CtcLossOpIr::create(
+            log_probs.into_ir(),
+            targets.into_ir(),
+            input_lengths.into_ir(),
+            target_lengths.into_ir(),
+            blank,
+            || client.create_empty_handle(),
         );
 
-        let desc = CustomOpIr::new(
-            "ctc_loss",
-            &[
-                log_probs.into_ir(),
-                targets.into_ir(),
-                input_lengths.into_ir(),
-                target_lengths.into_ir(),
-            ],
-            &[out],
-        );
         client
             .register(
                 streams,
-                OperationIr::Custom(desc.clone()),
-                CtcLossOps::<B>::new(desc, blank),
+                OperationIr::Module(ModuleOperationIr::CtcLoss(desc.clone())),
+                CtcLossOps::<B>::new(desc),
             )
             .output()
     }
@@ -1703,28 +1697,28 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         grad_loss: FloatTensor<Fusion<B>>,
         blank: usize,
     ) -> FloatTensor<Fusion<B>> {
-        // See `ctc_loss` for why this is routed through a CustomOpIr instead
-        // of going through the decomposed-default path.
-        #[derive(new, Debug)]
-        struct CtcLossBackwardOps<B: FusionBackend> {
-            desc: CustomOpIr,
-            blank: usize,
-            _b: PhantomData<B>,
-        }
-
-        impl<B: FusionBackend> Operation<B::FusionRuntime> for CtcLossBackwardOps<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let ([log_probs, targets, input_lengths, target_lengths, grad_loss], [out]) =
-                    self.desc.as_fixed();
-                let lp = handles.get_float_tensor::<B>(log_probs);
-                let tg = handles.get_int_tensor::<B>(targets);
-                let il = handles.get_int_tensor::<B>(input_lengths);
-                let tl = handles.get_int_tensor::<B>(target_lengths);
-                let gl = handles.get_float_tensor::<B>(grad_loss);
-                let output = B::ctc_loss_backward(lp, tg, il, tl, gl, self.blank);
-                handles.register_float_tensor::<B>(&out.id, output);
+        // Mirrors `ctc_loss`: a typed IR node that dispatches to the inner
+        // backend's native backward kernel.
+        make_ops!(
+            CtcLossBackwardOps,
+            CtcLossBackwardOpIr,
+            |args: &CtcLossBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let log_probs = handles.get_float_tensor::<B>(&args.log_probs);
+                let targets = handles.get_int_tensor::<B>(&args.targets);
+                let input_lengths = handles.get_int_tensor::<B>(&args.input_lengths);
+                let target_lengths = handles.get_int_tensor::<B>(&args.target_lengths);
+                let grad_loss = handles.get_float_tensor::<B>(&args.grad_loss);
+                let output = B::ctc_loss_backward(
+                    log_probs,
+                    targets,
+                    input_lengths,
+                    target_lengths,
+                    grad_loss,
+                    args.blank,
+                );
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
-        }
+        );
 
         let streams = OperationStreams::with_inputs([
             &log_probs,
@@ -1734,26 +1728,21 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             &grad_loss,
         ]);
         let client = log_probs.client.clone();
-        let shape = log_probs.shape.clone();
-        let dtype = log_probs.dtype;
-        let out = TensorIr::uninit(client.create_empty_handle(), shape, dtype);
-
-        let desc = CustomOpIr::new(
-            "ctc_loss_backward",
-            &[
-                log_probs.into_ir(),
-                targets.into_ir(),
-                input_lengths.into_ir(),
-                target_lengths.into_ir(),
-                grad_loss.into_ir(),
-            ],
-            &[out],
+        let desc = CtcLossBackwardOpIr::create(
+            log_probs.into_ir(),
+            targets.into_ir(),
+            input_lengths.into_ir(),
+            target_lengths.into_ir(),
+            grad_loss.into_ir(),
+            blank,
+            || client.create_empty_handle(),
         );
+
         client
             .register(
                 streams,
-                OperationIr::Custom(desc.clone()),
-                CtcLossBackwardOps::<B>::new(desc, blank),
+                OperationIr::Module(ModuleOperationIr::CtcLossBackward(desc.clone())),
+                CtcLossBackwardOps::<B>::new(desc),
             )
             .output()
     }
