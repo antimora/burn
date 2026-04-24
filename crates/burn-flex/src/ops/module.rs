@@ -748,26 +748,6 @@ impl ModuleOps<Flex> for Flex {
         crate::ops::activation::layer_norm(tensor, gamma, beta, epsilon)
     }
 
-    fn ctc_loss(
-        log_probs: FloatTensor<Flex>,
-        targets: IntTensor<Flex>,
-        input_lengths: IntTensor<Flex>,
-        target_lengths: IntTensor<Flex>,
-        blank: usize,
-    ) -> FloatTensor<Flex> {
-        // CPU backend: dispatch the default decomposed impl. Each primitive op
-        // is a SIMD-optimized function call (no kernel-launch overhead like on
-        // GPU backends), so the decomposed alpha algorithm runs at native CPU
-        // speed without needing a monolithic flex-specific implementation.
-        burn_backend::ops::ctc::ctc_loss_default::<Flex>(
-            log_probs,
-            targets,
-            input_lengths,
-            target_lengths,
-            blank,
-        )
-    }
-
     fn embedding_backward(
         weights: FloatTensor<Flex>,
         output_grad: FloatTensor<Flex>,
