@@ -45,7 +45,7 @@ fn test_ctc_loss_backward_unreachable_is_finite() {
         return;
     }
 
-    let device: <TestBackend as burn_tensor::backend::Backend>::Device = Default::default();
+    let device = Default::default();
 
     // T=2, target=[1, 1] requires three steps, so nll = +inf for this sample.
     let log_probs = TestTensor::<3>::full([2, 1, 3], (1.0f32 / 3.0).ln(), &device);
