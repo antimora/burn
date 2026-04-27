@@ -2,7 +2,7 @@ use burn_std::{Shape, Slice};
 
 use crate::{
     Backend, TensorMetadata, get_device_settings,
-    tensor::{FloatTensor, IntTensor},
+    tensor::{BoolTensor, FloatTensor, IntTensor},
 };
 
 /// Default CTC loss implementation using the forward (alpha) algorithm.
@@ -551,7 +551,7 @@ fn create_l_prime_mask<B: Backend>(
     device: &B::Device,
     int_dtype: burn_std::IntDType,
     bool_dtype: burn_std::BoolDType,
-) -> <B as Backend>::BoolTensorPrimitive {
+) -> BoolTensor<B> {
     // The mask requires `s >= 2`, which is unsatisfiable when max_l_prime_len < 2
     // (i.e. targets have shape [N, 0]). Bail out before the `max_l_prime_len - 2`
     // usize subtraction underflows.
@@ -600,7 +600,7 @@ fn create_s_mask<B: Backend>(
     device: &B::Device,
     int_dtype: burn_std::IntDType,
     bool_dtype: burn_std::BoolDType,
-) -> <B as Backend>::BoolTensorPrimitive {
+) -> BoolTensor<B> {
     let col_indices = B::int_arange(0..max_l_prime_len as i64, device, int_dtype);
     let col_indices = B::int_reshape(col_indices, Shape::new([1, max_l_prime_len]));
     let col_indices = B::int_expand(col_indices, Shape::new([batch_size, max_l_prime_len]));
