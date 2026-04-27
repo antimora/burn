@@ -1815,7 +1815,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
     fn adaptive_avg_pool2d_backward(
         _x: AutodiffTensor<B>,
         _grad: AutodiffTensor<B>,
-    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
+    ) -> AutodiffTensor<B> {
         panic!("Can't differentiate adaptive avg pool2d backward.");
     }
 
@@ -1869,7 +1869,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         _grad: FloatTensor<Autodiff<B, C>>,
         _output_size: [usize; 2],
         _options: InterpolateOptions,
-    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
+    ) -> AutodiffTensor<B> {
         panic!("Can't differentiate interpolate backward.");
     }
 
