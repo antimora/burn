@@ -240,8 +240,9 @@ impl RNNTLoss {
 
         let alpha_tu: Tensor<B, 1> =
             alpha.gather_nd(Tensor::stack::<2>(vec![b_idx.clone(), u_idx.clone()], 1));
-        let lpb_tu: Tensor<B, 1> =
-            lpb.clone().gather_nd(Tensor::stack::<2>(vec![b_idx, t_idx, u_idx], 1));
+        let lpb_tu: Tensor<B, 1> = lpb
+            .clone()
+            .gather_nd(Tensor::stack::<2>(vec![b_idx, t_idx, u_idx], 1));
 
         alpha_tu.add(lpb_tu).neg()
     }
