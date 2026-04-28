@@ -235,9 +235,13 @@ impl RNNTLoss {
         b: usize,
     ) -> Tensor<B, 1> {
         let device = alpha.device();
-        let t_idx = logit_lengths.sub_scalar(1);
+        // Anchor the index dtype on `u_idx` so all three coordinate tensors share a
+        // common int dtype before stacking - `cat` panics on dtype mismatch and the
+        // caller's lengths may not use the device's default IntElem.
         let u_idx = target_lengths;
-        let b_idx = Tensor::<B, 1, Int>::arange(0..b as i64, &device);
+        let int_dtype = u_idx.dtype();
+        let t_idx = logit_lengths.sub_scalar(1).cast(int_dtype);
+        let b_idx = Tensor::<B, 1, Int>::arange(0..b as i64, (&device, int_dtype));
 
         let alpha_tu: Tensor<B, 1> =
             alpha.gather_nd(Tensor::stack::<2>(vec![b_idx.clone(), u_idx.clone()], 1));
