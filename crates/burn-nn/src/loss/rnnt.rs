@@ -1,4 +1,5 @@
 use super::Reduction;
+use alloc::vec;
 use burn::config::Config;
 use burn::module::Module;
 use burn::tensor::{Bool, Int, Tensor, backend::Backend, s};
