@@ -1129,7 +1129,8 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc = ReduceDimOpIr::create(tensor.into_ir(), axis, || client.create_empty_handle());
+        let desc =
+            ReduceDimOpIr::create(tensor.into_ir(), axis, 1, || client.create_empty_handle());
 
         client
             .register(
@@ -1163,7 +1164,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, 1, || client.create_empty_handle());
 
         client
             .register(
@@ -1197,7 +1198,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, 1, || client.create_empty_handle());
 
         client
             .register(
@@ -1330,7 +1331,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, 1, || client.create_empty_handle());
 
         client
             .register(
@@ -1341,13 +1342,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn int_argtopk(_tensor: IntTensor<Self>, _dim: usize, _k: usize) -> IntTensor<Self> {
+        todo!()
+    }
+
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce_int_ops!(ArgMinOps, B::int_argmin);
 
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, 1, || client.create_empty_handle());
 
         client
             .register(
@@ -1491,7 +1496,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, 1, || client.create_empty_handle());
 
         client
             .register(
@@ -1580,7 +1585,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, 1, || client.create_empty_handle());
 
         client
             .register(
@@ -1600,7 +1605,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, 1, || client.create_empty_handle());
 
         client
             .register(
