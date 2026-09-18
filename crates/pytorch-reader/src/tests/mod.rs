@@ -1628,6 +1628,9 @@ fn test_zip_reads_from_several_threads() {
     }
 }
 
+// Unix only: the positional path is the one that reads into a buffer sized at open. The
+// stream path elsewhere reports a cut-short file as an archive that disagrees with itself.
+#[cfg(unix)]
 #[test]
 fn test_zip_reads_of_a_truncated_file_are_an_error() {
     // The file length and entry offsets were taken at open. A file cut short underneath
